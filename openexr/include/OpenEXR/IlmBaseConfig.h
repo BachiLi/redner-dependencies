@@ -1,4 +1,7 @@
 #define HAVE_PTHREAD 1
+#define ILMBASE_HAVE_LARGE_STACK  1
+#define HAVE_POSIX_SEMAPHORES 1
+#define ILMBASE_HAVE_CONTROL_REGISTER_SUPPORT 1
 #if __cplusplus < 201103L
 # error "Modern C++ 11/14 not enabled but force cxx03 not set"
 #endif
