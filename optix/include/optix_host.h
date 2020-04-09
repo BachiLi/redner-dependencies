@@ -1,6 +1,6 @@
 
 /*
- * Copyright (c) 2018, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2018 NVIDIA CORPORATION.  All rights reserved.
  *
  * NVIDIA Corporation and its licensors retain all intellectual property and proprietary
  * rights in and to this software, related documentation and any modifications thereto.
@@ -26,7 +26,6 @@
  *
  * OptiX public API Reference - Host side
  */
-
 
 #ifndef __optix_optix_host_h__
 #define __optix_optix_host_h__
@@ -74,9 +73,6 @@ typedef struct RTcontext_api            * RTcontext;
 /** Opaque type to handle Geometry - Note that the *_api type should never be used directly.
 Only the typedef target name will be guaranteed to remain unchanged */
 typedef struct RTgeometry_api           * RTgeometry;
-/** Opaque type to handle GeometryTriangles - Note that the *_api type should never be used directly.
-Only the typedef target name will be guaranteed to remain unchanged */
-typedef struct RTgeometrytriangles_api  * RTgeometrytriangles;
 /** Opaque type to handle Geometry Instance - Note that the *_api type should never be used directly.
 Only the typedef target name will be guaranteed to remain unchanged */
 typedef struct RTgeometryinstance_api   * RTgeometryinstance;
@@ -107,6 +103,9 @@ typedef struct RTvariable_api           * RTvariable;
 /** Opaque type to handle Object - Note that the *_api type should never be used directly.
 Only the typedef target name will be guaranteed to remain unchanged */
 typedef void                            * RTobject;
+/** Opaque type to handle RemoteDevice - Note that the *_api type should never be used directly.
+Only the typedef target name will be guaranteed to remain unchanged */
+typedef struct RTremotedevice_api       * RTremotedevice;
 /** Opaque type to handle PostprocessingStage - Note that the *_api type should never be used directly.
 Only the typedef target name will be guaranteed to remain unchanged */
 typedef struct RTpostprocessingstage_api* RTpostprocessingstage;
@@ -121,7 +120,7 @@ typedef struct RTcommandlist_api        * RTcommandlist;
  ***********************************/
 
 /** Callback signature for use with rtContextSetTimeoutCallback.
- * Deprecated in OptiX 6.0. */
+ * Return 1 to ask for abort, 0 to continue. */
 typedef int (*RTtimeoutcallback)(void);
 
 /** Callback signature for use with rtContextSetUsageReportCallback. */
@@ -182,11 +181,11 @@ extern "C" {
   *
   * Each attribute can have a different size.  The sizes are given in the following list:
   *
-  *   - @ref RT_GLOBAL_ATTRIBUTE_ENABLE_RTX          sizeof(int)
+  *   - @ref RT_GLOBAL_ATTRIBUTE_EXPERIMENTAL_EXECUTION_STRATEGY          sizeof(int)
   *
-  * @ref RT_GLOBAL_ATTRIBUTE_ENABLE_RTX sets the execution strategy used by Optix for the
-  * next context to be created.
-  * Possible values: 0 (legacy megakernel execution strategy), 1 (RTX execution strategy).
+  * @ref RT_GLOBAL_ATTRIBUTE_EXPERIMENTAL_EXECUTION_STRATEGY is an experimental attribute which sets the execution strategy
+  * used by Optix for the next context to be created.  This attribute may be deprecated in a future release.
+  * Possible values: 0 (legacy default), 1 (compile and link programs separately).
   *
   * @param[in]   attrib    Attribute to set
   * @param[in]   size      Size of the attribute being set
@@ -208,7 +207,7 @@ extern "C" {
   * @ref rtGlobalGetAttribute
   *
   */
-  RTresult RTAPI rtGlobalSetAttribute(RTglobalattribute attrib, RTsize size, const void* p);
+  RTresult RTAPI rtGlobalSetAttribute(RTglobalattribute attrib, RTsize size, void* p);
 
   /**
   * @brief Returns a global attribute
@@ -222,18 +221,18 @@ extern "C" {
   *
   * Each attribute can have a different size. The sizes are given in the following list:
   *
-  *   - @ref RT_GLOBAL_ATTRIBUTE_ENABLE_RTX                            sizeof(int)
+  *   - @ref RT_GLOBAL_ATTRIBUTE_EXPERIMENTAL_EXECUTION_STRATEGY        sizeof(int)
   *   - @ref RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MAJOR           sizeof(unsigned int)
   *   - @ref RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MINOR           sizeof(unsigend int)
   *
-  * @ref RT_GLOBAL_ATTRIBUTE_ENABLE_RTX is an experimental setting which sets the execution strategy
-  * used by Optix for the next context to be created.
+  * @ref RT_GLOBAL_ATTRIBUTE_EXPERIMENTAL_EXECUTION_STRATEGY is an experimental setting which sets the execution strategy
+  * used by Optix for the next context to be created.  
   *
   * @ref RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MAJOR is an attribute to query the major version of the display driver
   * found on the system. It's the first number in the driver version displayed as xxx.yy.
   *
-  * @ref RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MINOR is an attribute to query the minor version of the display driver
-  * found on the system. It's the second number in the driver version displayed as xxx.yy.
+  * @ref RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MINOR is an attribute to query the minor version of the display
+  * driver found on the system.
   *
   * @param[in]   attrib    Attribute to query
   * @param[in]   size      Size of the attribute being queried.  Parameter \a p must have at least this much memory allocated
@@ -246,7 +245,6 @@ extern "C" {
   * - @ref RT_ERROR_INVALID_GLOBAL_ATTRIBUTE - Can be returned if an unknown attribute was addressed.
   * - @ref RT_ERROR_INVALID_VALUE - Can be returned if \a size does not match the proper size of the attribute, if \a p is
   * \a NULL, or if \a attribute+ordinal does not correspond to an OptiX device
-  * - @ref RT_ERROR_DRIVER_VERSION_FAILED - Can be returned if the display driver version could not be obtained.
   *
   * <B>History</B>
   *
@@ -310,12 +308,6 @@ extern "C" {
   *   - @ref RT_DEVICE_ATTRIBUTE_TCC_DRIVER                   sizeof(int)
   *   - @ref RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL          sizeof(int)
   *   - @ref RT_DEVICE_ATTRIBUTE_PCI_BUS_ID                   up to size-1, at most 13 chars
-  *   - @ref RT_DEVICE_ATTRIBUTE_COMPATIBLE_DEVICES           sizeof(int)*(number of devices + 1)
-  *
-  * For \a RT_DEVICE_ATTRIBUTE_COMPATIBLE_DEVICES, the first \a int returned is the number
-  * of compatible device ordinals returned.  A device is always compatible with itself, so
-  * the count will always be at least one.  Size the output buffer based on the number of
-  * devices as returned by \a rtDeviceGetDeviceCount.
   *
   * @param[in]   ordinal   OptiX device ordinal
   * @param[in]   attrib    Attribute to query
@@ -334,7 +326,6 @@ extern "C" {
   * @ref rtDeviceGetAttribute was introduced in OptiX 2.0.
   * @ref RT_DEVICE_ATTRIBUTE_TCC_DRIVER was introduced in OptiX 3.0.
   * @ref RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL was introduced in OptiX 3.0.
-  * @ref RT_DEVICE_ATTRIBUTE_COMPATIBLE_DEVICES was introduced in OptiX 6.0.
   *
   * <B>See also</B>
   * @ref rtDeviceGetDeviceCount,
@@ -564,114 +555,6 @@ extern "C" {
   * @param[in]   u          Array of unsigned integer values to set the variable to
   */
   RTresult RTAPI rtVariableSet4uiv(RTvariable v, const unsigned int* u);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll1        Specifies the new long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet1ll(RTvariable v, long long ll1);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll1        Specifies the new long long value of the program variable
-  * @param[in]   ll2        Specifies the new long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet2ll(RTvariable v, long long ll1, long long ll2);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll1        Specifies the new long long value of the program variable
-  * @param[in]   ll2        Specifies the new long long value of the program variable
-  * @param[in]   ll3        Specifies the new long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet3ll(RTvariable v, long long ll1, long long ll2, long long ll3);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll1        Specifies the new long long value of the program variable
-  * @param[in]   ll2        Specifies the new long long value of the program variable
-  * @param[in]   ll3        Specifies the new long long value of the program variable
-  * @param[in]   ll4        Specifies the new long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet4ll(RTvariable v, long long ll1, long long ll2, long long ll3, long long ll4);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll         Array of long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet1llv(RTvariable v, const long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll         Array of long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet2llv(RTvariable v, const long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll         Array of long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet3llv(RTvariable v, const long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ll         Array of long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet4llv(RTvariable v, const long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull1       Specifies the new unsigned long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet1ull(RTvariable v, unsigned long long ull1);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull1       Specifies the new unsigned long long value of the program variable
-  * @param[in]   ull2       Specifies the new unsigned long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet2ull(RTvariable v, unsigned long long ull1, unsigned long long ull2);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull1       Specifies the new unsigned long long value of the program variable
-  * @param[in]   ull2       Specifies the new unsigned long long value of the program variable
-  * @param[in]   ull3       Specifies the new unsigned long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet3ull(RTvariable v, unsigned long long ull1, unsigned long long ull2, unsigned long long ull3);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull1       Specifies the new unsigned long long value of the program variable
-  * @param[in]   ull2       Specifies the new unsigned long long value of the program variable
-  * @param[in]   ull3       Specifies the new unsigned long long value of the program variable
-  * @param[in]   ull4       Specifies the new unsigned long long value of the program variable
-  */
-  RTresult RTAPI rtVariableSet4ull(RTvariable v, unsigned long long ull1, unsigned long long ull2, unsigned long long ull3, unsigned long long ull4);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull        Array of unsigned long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet1ullv(RTvariable v, const unsigned long long* ull);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull        Array of unsigned long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet2ullv(RTvariable v, const unsigned long long* ull);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull        Array of unsigned long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet3ullv(RTvariable v, const unsigned long long* ull);
-
-  /**
-  * @param[in]   v          Specifies the program variable to be modified
-  * @param[in]   ull        Array of unsigned long long values to set the variable to
-  */
-  RTresult RTAPI rtVariableSet4ullv(RTvariable v, const unsigned long long* ull);
 
   /**
   * @param[in]   v          Specifies the program variable to be modified
@@ -1035,114 +918,6 @@ extern "C" {
 
   /**
   * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll1        Integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet1ll(RTvariable v, long long* ll1);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll1        Integer value to be returned
-  * @param[in]   ll2        Integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet2ll(RTvariable v, long long* ll1, long long* ll2);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll1        Integer value to be returned
-  * @param[in]   ll2        Integer value to be returned
-  * @param[in]   ll3        Integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet3ll(RTvariable v, long long* ll1, long long* ll2, long long* ll3);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll1        Integer value to be returned
-  * @param[in]   ll2        Integer value to be returned
-  * @param[in]   ll3        Integer value to be returned
-  * @param[in]   ll4        Integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet4ll(RTvariable v, long long* ll1, long long* ll2, long long* ll3, long long* ll4);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll         Array of integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet1llv(RTvariable v, long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll         Array of integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet2llv(RTvariable v, long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll         Array of integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet3llv(RTvariable v, long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ll         Array of integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet4llv(RTvariable v, long long* ll);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   u1         Unsigned integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet1ull(RTvariable v, unsigned long long* u1);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   u1         Unsigned integer value to be returned
-  * @param[in]   u2         Unsigned integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet2ull(RTvariable v, unsigned long long* u1, unsigned long long* u2);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   u1         Unsigned integer value to be returned
-  * @param[in]   u2         Unsigned integer value to be returned
-  * @param[in]   u3         Unsigned integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet3ull(RTvariable v, unsigned long long* u1, unsigned long long* u2, unsigned long long* u3);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   u1         Unsigned integer value to be returned
-  * @param[in]   u2         Unsigned integer value to be returned
-  * @param[in]   u3         Unsigned integer value to be returned
-  * @param[in]   u4         Unsigned integer value to be returned
-  */
-  RTresult RTAPI rtVariableGet4ull(RTvariable v, unsigned long long* u1, unsigned long long* u2, unsigned long long* u3, unsigned long long* u4);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ull        Array of unsigned integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet1ullv(RTvariable v, unsigned long long* ull);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ull        Array of unsigned integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet2ullv(RTvariable v, unsigned long long* ull);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ull        Array of unsigned integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet3ullv(RTvariable v, unsigned long long* ull);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
-  * @param[in]   ull        Array of unsigned integer values to be returned
-  */
-  RTresult RTAPI rtVariableGet4ullv(RTvariable v, unsigned long long* ull);
-
-  /**
-  * @param[in]   v          Specifies the program variable whose value is to be returned
   * @param[in]   transpose  Specify(ies) row-major or column-major order
   * @param[in]   m          Array of float values to be returned
   */
@@ -1292,14 +1067,14 @@ extern "C" {
   *
   * Queries a program variable's name. The variable of interest is specified by \a
   * variable, which should be a value returned by @ref rtContextDeclareVariable. A pointer
-  * to the string containing the name of the variable is returned in \a *nameReturn.
+  * to the string containing the name of the variable is returned in \a *name_return.
   * If \a v is not a valid variable, this
-  * call sets \a *nameReturn to \a NULL and returns @ref RT_ERROR_INVALID_VALUE.  \a
-  * *nameReturn will point to valid memory until another API function that returns a
+  * call sets \a *name_return to \a NULL and returns @ref RT_ERROR_INVALID_VALUE.  \a
+  * *name_return will point to valid memory until another API function that returns a
   * string is called.
   *
   * @param[in]   v             Specifies the program variable to be queried
-  * @param[out]  nameReturn    Returns the program variable's name
+  * @param[out]  name_return   Returns the program variable's name
   *
   * <B>Return values</B>
   *
@@ -1317,7 +1092,7 @@ extern "C" {
   * @ref rtContextDeclareVariable
   *
   */
-  RTresult RTAPI rtVariableGetName(RTvariable v, const char** nameReturn);
+  RTresult RTAPI rtVariableGetName(RTvariable v, const char** name_return);
 
   /**
   * @brief Queries the annotation string of a program variable
@@ -1327,14 +1102,14 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtVariableGetAnnotation queries a program variable's annotation string. A pointer
-  * to the string containing the annotation is returned in \a *annotationReturn.
+  * to the string containing the annotation is returned in \a *annotation_return.
   * If \a v is not a valid variable, this call sets
-  * \a *annotationReturn to \a NULL and returns @ref RT_ERROR_INVALID_VALUE.  \a
-  * *annotationReturn will point to valid memory until another API function that returns
+  * \a *annotation_return to \a NULL and returns @ref RT_ERROR_INVALID_VALUE.  \a
+  * *annotation_return will point to valid memory until another API function that returns
   * a string is called.
   *
   * @param[in]   v                   Specifies the program variable to be queried
-  * @param[out]  annotationReturn    Returns the program variable's annotation string
+  * @param[out]  annotation_return   Returns the program variable's annotation string
   *
   * <B>Return values</B>
   *
@@ -1353,7 +1128,7 @@ extern "C" {
   * @ref rtDeclareAnnotation
   *
   */
-  RTresult RTAPI rtVariableGetAnnotation(RTvariable v, const char** annotationReturn);
+  RTresult RTAPI rtVariableGetAnnotation(RTvariable v, const char** annotation_return);
 
   /**
   * @brief Returns type information about a program variable
@@ -1363,7 +1138,7 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtVariableGetType queries a program variable's type. The variable of interest is
-  * specified by \a v. The program variable's type enumeration is returned in \a *typeReturn,
+  * specified by \a v. The program variable's type enumeration is returned in \a *type_return,
   * if it is not \a NULL. It is one of the following:
   *
   *   - @ref RT_OBJECTTYPE_UNKNOWN
@@ -1398,11 +1173,11 @@ extern "C" {
   *   - @ref RT_OBJECTTYPE_UNSIGNED_INT4
   *   - @ref RT_OBJECTTYPE_USER
   *
-  * Sets \a *typeReturn to @ref RT_OBJECTTYPE_UNKNOWN if \a v is not a valid variable.
+  * Sets \a *type_return to @ref RT_OBJECTTYPE_UNKNOWN if \a v is not a valid variable.
   * Returns @ref RT_ERROR_INVALID_VALUE if given a \a NULL pointer.
   *
   * @param[in]   v             Specifies the program variable to be queried
-  * @param[out]  typeReturn    Returns the type of the program variable
+  * @param[out]  type_return   Returns the type of the program variable
   *
   * <B>Return values</B>
   *
@@ -1419,7 +1194,7 @@ extern "C" {
   * @ref rtContextDeclareVariable
   *
   */
-  RTresult RTAPI rtVariableGetType(RTvariable v, RTobjecttype* typeReturn);
+  RTresult RTAPI rtVariableGetType(RTvariable v, RTobjecttype* type_return);
 
   /**
   * @brief Returns the context associated with a program variable
@@ -1599,13 +1374,13 @@ extern "C" {
   *
   * @ref rtContextGetErrorString return a descriptive string given an error code.  If \a
   * context is valid and additional information is available from the last OptiX failure,
-  * it will be appended to the generic error code description.  \a stringReturn will be
-  * set to point to this string.  The memory \a stringReturn points to will be valid
+  * it will be appended to the generic error code description.  \a return_string will be
+  * set to point to this string.  The memory \a return_string points to will be valid
   * until the next API call that returns a string.
   *
   * @param[in]   context         The context object to be queried, or \a NULL
   * @param[in]   code            The error code to be converted to string
-  * @param[out]  stringReturn    The return parameter for the error string
+  * @param[out]  return_string   The return parameter for the error string
   *
   * <B>Return values</B>
   *
@@ -1619,7 +1394,7 @@ extern "C" {
   *
   *
   */
-  void RTAPI rtContextGetErrorString(RTcontext context, RTresult code, const char** stringReturn);
+  void RTAPI rtContextGetErrorString(RTcontext context, RTresult code, const char** return_string);
 
   /**
   * @brief Set an attribute specific to an OptiX context
@@ -1635,60 +1410,16 @@ extern "C" {
   *
   *   - @ref RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS             sizeof(int)
   *   - @ref RT_CONTEXT_ATTRIBUTE_PREFER_FAST_RECOMPILES      sizeof(int)
-  *   - @ref RT_CONTEXT_ATTRIBUTE_FORCE_INLINE_USER_FUNCTIONS sizeof(int)
-  *   - @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_LOCATION         sizeof(char*)
-  *   - @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_MEMORY_LIMITS    sizeof(RTSize[2])
-  *   - @ref RT_CONTEXT_ATTRIBUTE_MAX_CONCURRENT_LAUNCHES     sizeof(int)
-  *   - @ref RT_CONTEXT_ATTRIBUTE_PREFER_WATERTIGHT_TRAVERSAL sizeof(int)
   *
   * @ref RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS sets the number of host CPU threads OptiX
   * can use for various tasks.
   *
-  * @ref RT_CONTEXT_ATTRIBUTE_PREFER_FAST_RECOMPILES is a hint about scene usage.  By
-  * default OptiX produces device kernels that are optimized for the current scene.  Such
+  * @ref RT_CONTEXT_ATTRIBUTE_PREFER_FAST_RECOMPILES is a hint about scene usage.  By 
+  * default OptiX produces device kernels that are optimized for the current scene.  Such 
   * kernels generally run faster, but must be recompiled after some types of scene
-  * changes, causing delays.  Setting PREFER_FAST_RECOMPILES to 1 will leave out some
+  * changes, causing delays.  Setting PREFER_FAST_RECOMPILES to 1 will leave out some 
   * scene-specific optimizations, producing kernels that generally run slower but are less
   * sensitive to changes in the scene.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_FORCE_INLINE_USER_FUNCTIONS sets whether or not OptiX will
-  * automatically inline user functions, which is the default behavior.  Please see the
-  * Programming Guide for more information about the benefits and limitations of disabling
-  * automatic inlining.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_LOCATION sets the location where the OptiX disk
-  * cache will be created.  The location must be provided as a \a NULL-terminated
-  * string. OptiX will attempt to create the directory if it does not exist.  An exception
-  * will be thrown if OptiX is unable to create the cache database file at the specified
-  * location for any reason (e.g., the path is invalid or the directory is not writable).
-  * The location of the disk cache can be overridden with the environment variable \a
-  * OPTIX_CACHE_PATH. This environment variable takes precedence over the RTcontext
-  * attribute. The default location depends on the operating system:
-  *
-  *   - Windows: %LOCALAPPDATA%\\NVIDIA\\OptixCache
-  *   - Linux:   /var/tmp/OptixCache_\<username\> (or /tmp/OptixCache_\<username\> if the first
-  *              choice is not usable), the underscore and username suffix are omitted if the
-  *              username cannot be obtained
-  *   - MacOS X: /Library/Application Support/NVIDIA/OptixCache
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_MEMORY_LIMITS sets the low and high watermarks
-  * for disk cache garbage collection.  The limits must be passed in as a two-element
-  * array of \a RTsize values, with the low limit as the first element.  OptiX will throw
-  * an exception if either limit is non-zero and the high limit is not greater than the
-  * low limit.  Setting either limit to zero will disable garbage collection.  Garbage
-  * collection is triggered whenever the cache data size exceeds the high watermark and
-  * proceeds until the size reaches the low watermark.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_MAX_CONCURRENT_LAUNCHES sets the maximum number of allowed
-  * concurrent asynchronous launches per device. The actual number of launches can be less than
-  * the set limit, and actual GPU scheduling may affect concurrency. This limit affects only
-  * asynchronous launches. Valid values are from 1 to the maximum number of CUDA streams
-  * supported by a device. Default value is 2.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_PREFER_WATERTIGHT_TRAVERSAL sets whether or not OptiX should prefer
-  * to use a watertight traversal method or not. The default behaviour is preferring to use
-  * watertight traversal. Note that OptiX might still choose to decide otherwise though.
-  * Please see the Programming Guide for more information about the different traversal methods.
   *
   * @param[in]   context   The context object to be modified
   * @param[in]   attrib    Attribute to set
@@ -1710,7 +1441,7 @@ extern "C" {
   * @ref rtContextGetAttribute
   *
   */
-  RTresult RTAPI rtContextSetAttribute(RTcontext context, RTcontextattribute attrib, RTsize size, const void* p);
+  RTresult RTAPI rtContextSetAttribute(RTcontext context, RTcontextattribute attrib, RTsize size, void* p);
 
   /**
   * @brief Returns an attribute specific to an OptiX context
@@ -1728,10 +1459,7 @@ extern "C" {
   *   - @ref RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS          sizeof(int)
   *   - @ref RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY         sizeof(RTsize)
   *   - @ref RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY  sizeof(RTsize)
-  *   - @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_ENABLED       sizeof(int)
-  *   - @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_LOCATION      sizeof(char**)
-  *   - @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_MEMORY_LIMITS sizeof(RTSize[2])
-  *   - @ref RT_CONTEXT_ATTRIBUTE_MAX_CONCURRENT_LAUNCHES  sizeof(int)
+  *   - @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_ENABLED       sizeof(bool)
   *
   * @ref RT_CONTEXT_ATTRIBUTE_MAX_TEXTURE_COUNT queries the maximum number of textures
   * handled by OptiX. For OptiX versions below 2.5 this value depends on the number of
@@ -1745,18 +1473,6 @@ extern "C" {
   *
   * @ref RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY queries the amount of free device
   * memory.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_ENABLED queries whether or not the OptiX disk
-  * cache is enabled.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_LOCATION queries the file path of the OptiX
-  * disk cache.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_DISK_CACHE_MEMORY_LIMITS queries the low and high watermark values
-  * for the OptiX disk cache.
-  *
-  * @ref RT_CONTEXT_ATTRIBUTE_MAX_CONCURRENT_LAUNCHES queries the number of concurrent asynchronous
-  * launches allowed per device.
   *
   * Some attributes are used to get per device information.  In contrast to @ref
   * rtDeviceGetAttribute, these attributes are determined by the context and are therefore
@@ -1891,6 +1607,48 @@ extern "C" {
   RTresult RTAPI rtContextGetDeviceCount(RTcontext context, unsigned int* count);
 
   /**
+  * @brief Enable rendering on a remote device
+  *
+  * @ingroup Context
+  *
+  * <B>Description</B>
+  *
+  * Associates a context with a remote device. If successful, any further OptiX calls will be
+  * directed to the remote device and executed there. The context must be an empty, newly created
+  * context. In other words, in order to use a context remotely, the call to @ref rtContextSetRemoteDevice
+  * should immediately follow the call to @ref rtContextCreate.
+  *
+  * Note that a context that was used for remote rendering cannot be re-used for local rendering by
+  * changing devices. However, the Progressive API (that is, @ref rtContextLaunchProgressive2D,
+  * stream buffers, etc.) can be used locally by simply not creating a remote device and not calling
+  * @ref rtContextSetRemoteDevice.
+  *
+  * Only a single remote device can be associated with a context. Switching between
+  * different remote devices is not supported.
+  *
+  * @param[in]   context        Newly created context to use on the remote device
+  * @param[in]   remote_dev     Remote device on which rendering is to be executed
+  *
+  * <B>Return values</B>
+  *
+  * Relevant return values:
+  * - @ref RT_SUCCESS
+  * - @ref RT_ERROR_INVALID_VALUE
+  *
+  * <B>History</B>
+  *
+  * @ref rtContextSetRemoteDevice was introduced in OptiX 3.8.
+  *
+  * <B>See also</B>
+  * @ref rtRemoteDeviceCreate
+  * @ref rtRemoteDeviceGetAttribute
+  * @ref rtRemoteDeviceReserve
+  * @ref rtContextLaunchProgressive2D
+  *
+  */
+  RTresult RTAPI rtContextSetRemoteDevice(RTcontext context, RTremotedevice remote_dev);
+
+  /**
   * @brief Set the stack size for a given context
   *
   * @ingroup Context
@@ -1898,13 +1656,10 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextSetStackSize sets the stack size for the given context to
-  * \a bytes bytes. Not supported with the RTX execution strategy.
-  * With RTX execution strategy @ref rtContextSetMaxTraceDepth and @ref rtContextSetMaxCallableProgramDepth
-  * should be used to control stack size.
-  * Returns @ref RT_ERROR_INVALID_VALUE if context is not valid.
+  * \a stack_size_bytes bytes. Returns @ref RT_ERROR_INVALID_VALUE if context is not valid.
   *
-  * @param[in]   context  The context node to be modified
-  * @param[in]   bytes    The desired stack size in bytes
+  * @param[in]   context            The context node to be modified
+  * @param[in]   stack_size_bytes   The desired stack size in bytes
   *
   * <B>Return values</B>
   *
@@ -1920,7 +1675,7 @@ extern "C" {
   * @ref rtContextGetStackSize
   *
   */
-  RTresult RTAPI rtContextSetStackSize(RTcontext context, RTsize bytes);
+  RTresult RTAPI rtContextSetStackSize(RTcontext context, RTsize stack_size_bytes);
 
   /**
   * @brief Query the stack size for this context
@@ -1930,10 +1685,10 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextGetStackSize passes back the stack size associated with this context in
-  * \a bytes.  Returns @ref RT_ERROR_INVALID_VALUE if passed a \a NULL pointer.
+  * \a stack_size_bytes.  Returns @ref RT_ERROR_INVALID_VALUE if passed a \a NULL pointer.
   *
-  * @param[in]   context The context node to be queried
-  * @param[out]  bytes   Return parameter to store the size of the stack
+  * @param[in]   context            The context node to be queried
+  * @param[out]  stack_size_bytes   Return parameter to store the size of the stack
   *
   * <B>Return values</B>
   *
@@ -1949,22 +1704,55 @@ extern "C" {
   * @ref rtContextSetStackSize
   *
   */
-  RTresult RTAPI rtContextGetStackSize(RTcontext context, RTsize* bytes);
+  RTresult RTAPI rtContextGetStackSize(RTcontext context, RTsize* stack_size_bytes);
+
 
   /**
-  * @brief Set maximum callable program call depth for a given context
+  * @brief Side timeout callback function
   *
   * @ingroup Context
   *
   * <B>Description</B>
   *
-  * @ref rtContextSetMaxCallableProgramDepth sets the maximum call depth of a chain of callable programs
-  * for the given context to \a maxDepth. This value is only used for stack size computation.
-  * Only supported for RTX execution mode. Default value is 5.
-  * Returns @ref RT_ERROR_INVALID_VALUE if context is not valid.
+  * @ref rtContextSetTimeoutCallback sets an application-side callback function
+  * \a callback and a time interval \a min_polling_seconds in
+  * seconds. Potentially long-running OptiX API calls such as
+  * @ref rtContextLaunch call the callback function about every
+  * \a min_polling_seconds seconds. The core purpose of a timeout callback
+  * function is to give the application a chance to do whatever it might need
+  * to do frequently, such as handling GUI events.
   *
-  * @param[in]   context            The context node to be modified
-  * @param[in]   maxDepth           The desired maximum depth
+  * If the callback function returns true,
+  * the API call tries to abort, leaving the context in a clean but
+  * unfinished state. Output buffers are left in an unpredictable state.
+  * In case an OptiX API call is terminated by a callback function, it
+  * returns @ref RT_TIMEOUT_CALLBACK.
+  *
+  * As a side effect, timeout functions also help control the OptiX
+  * kernel run-time. This can in some cases prevent OptiX kernel
+  * launches from running so long that they cause driver timeouts. For
+  * example, if \a min_polling_seconds is 0.5 seconds then once the
+  * kernel has been running for 0.5 seconds it won't start any new
+  * launch indices (calls to a ray generation program). Thus, if the
+  * driver's timeout is 2 seconds (the default on Windows), then a
+  * launch index may take up to 1.5 seconds without triggering a
+  * driver timeout.
+  *
+  * @ref RTtimeoutcallback is defined as \a int (*RTtimeoutcallback)(void).
+  *
+  * To unregister a callback function, \a callback needs to be set to
+  * \a NULL and \a min_polling_seconds to 0.
+  *
+  * Only one timeout callback function can be specified at any time.
+  *
+  * Returns @ref RT_ERROR_INVALID_VALUE if \a context is not valid, if
+  * \a min_polling_seconds is negative, if \a callback is \a NULL but
+  * \a min_polling_seconds is not 0, or if \a callback is not \a NULL but
+  * \a min_polling_seconds is 0.
+  *
+  * @param[in]   context               The context node to be modified
+  * @param[in]   callback              The function to be called
+  * @param[in]   min_polling_seconds   The timeout interval after which the function is called
   *
   * <B>Return values</B>
   *
@@ -1974,107 +1762,13 @@ extern "C" {
   *
   * <B>History</B>
   *
-  * @ref rtContextSetMaxCallableProgramDepth was introduced in OptiX 6.0
+  * @ref rtContextSetTimeoutCallback was introduced in OptiX 2.5.
   *
   * <B>See also</B>
-  * @ref rtContextGetMaxCallableProgramDepth
+  * @ref rtContextLaunch
   *
   */
-  RTresult RTAPI rtContextSetMaxCallableProgramDepth( RTcontext context, unsigned int maxDepth );
-
-  /**
-  * @brief Query the maximum call depth for callable programs
-  *
-  * @ingroup Context
-  *
-  * <B>Description</B>
-  *
-  * @ref rtContextGetMaxCallableProgramDepth passes back the maximum callable program call depth
-  * associated with this context in \a maxDepth.
-  * Returns @ref RT_ERROR_INVALID_VALUE if passed a \a NULL pointer.
-  *
-  * @param[in]   context            The context node to be queried
-  * @param[out]  maxDepth           Return parameter to store the maximum callable program depth
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtContextGetMaxCallableProgramDepth was introduced in OptiX 6.0
-  *
-  * <B>See also</B>
-  * @ref rtContextSetMaxCallableProgramDepth
-  *
-  */
-  RTresult RTAPI rtContextGetMaxCallableProgramDepth( RTcontext context, unsigned int* maxDepth );
-
-  /**
-  * @brief Set the maximum trace depth for a given context
-  *
-  * @ingroup Context
-  *
-  * <B>Description</B>
-  *
-  * @ref rtContextSetMaxTraceDepth sets the maximum trace depth for the given context to
-  * \a maxDepth. Only supported for RTX execution mode. Default value is 5. Maximum trace depth is 31.
-  * Returns @ref RT_ERROR_INVALID_VALUE if context is not valid.
-  *
-  * @param[in]   context            The context node to be modified
-  * @param[in]   maxDepth           The desired maximum depth
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtContextSetMaxTraceDepth was introduced in OptiX 6.0
-  *
-  * <B>See also</B>
-  * @ref rtContextGetMaxTraceDepth
-  *
-  */
-  RTresult RTAPI rtContextSetMaxTraceDepth( RTcontext context, unsigned int maxDepth );
-
-  /**
-  * @brief Query the maximum trace depth for this context
-  *
-  * @ingroup Context
-  *
-  * <B>Description</B>
-  *
-  * @ref rtContextGetMaxTraceDepth passes back the maximum trace depth associated with this context in
-  * \a maxDepth.  Returns @ref RT_ERROR_INVALID_VALUE if passed a \a NULL pointer.
-  *
-  * @param[in]   context            The context node to be queried
-  * @param[out]  maxDepth           Return parameter to store the maximum trace depth
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtContextGetMaxTraceDepth was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtContextSetMaxTraceDepth
-  *
-  */
-  RTresult RTAPI rtContextGetMaxTraceDepth( RTcontext context, unsigned int* maxDepth );
-
-  /**
-  * Deprecated in OptiX 6.0. Calling this function has no effect.
-  */
-  RTresult RTAPI rtContextSetTimeoutCallback(RTcontext context, RTtimeoutcallback callback, double minPollingSeconds);
+  RTresult RTAPI rtContextSetTimeoutCallback(RTcontext context, RTtimeoutcallback callback, double min_polling_seconds);
 
   /**
   * @brief Set usage report callback function
@@ -2143,10 +1837,10 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextSetEntryPointCount sets the number of entry points associated with
-  * the given context to \a count.
+  * the given context to \a num_entry_points.
   *
-  * @param[in]   context The context to be modified
-  * @param[in]   count   The number of entry points to use
+  * @param[in]   context            The context to be modified
+  * @param[in]   num_entry_points   The number of entry points to use
   *
   * <B>Return values</B>
   *
@@ -2162,7 +1856,7 @@ extern "C" {
   * @ref rtContextGetEntryPointCount
   *
   */
-  RTresult RTAPI rtContextSetEntryPointCount(RTcontext context, unsigned int count);
+  RTresult RTAPI rtContextSetEntryPointCount(RTcontext context, unsigned int num_entry_points);
 
   /**
   * @brief Query the number of entry points for this
@@ -2173,11 +1867,11 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextGetEntryPointCount passes back the number of entry points associated
-  * with this context in \a count.  Returns @ref RT_ERROR_INVALID_VALUE if
+  * with this context in \a num_entry_points.  Returns @ref RT_ERROR_INVALID_VALUE if
   * passed a \a NULL pointer.
   *
-  * @param[in]   context The context node to be queried
-  * @param[out]  count   Return parameter for passing back the entry point count
+  * @param[in]   context            The context node to be queried
+  * @param[out]  num_entry_points   Return parameter for passing back the entry point count
   *
   * <B>Return values</B>
   *
@@ -2193,7 +1887,7 @@ extern "C" {
   * @ref rtContextSetEntryPointCount
   *
   */
-  RTresult RTAPI rtContextGetEntryPointCount(RTcontext context, unsigned int* count);
+  RTresult RTAPI rtContextGetEntryPointCount(RTcontext context, unsigned int* num_entry_points);
 
   /**
   * @brief Specifies the ray generation program for
@@ -2204,12 +1898,12 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextSetRayGenerationProgram sets \a context's ray generation program at
-  * entry point \a entryPointIndex. @ref RT_ERROR_INVALID_VALUE is returned if \a
-  * entryPointIndex is outside of the range [\a 0, @ref rtContextGetEntryPointCount
+  * entry point \a entry_point_index. @ref RT_ERROR_INVALID_VALUE is returned if \a
+  * entry_point_index is outside of the range [\a 0, @ref rtContextGetEntryPointCount
   * \a -1].
   *
   * @param[in]   context             The context node to which the exception program will be added
-  * @param[in]   entryPointIndex     The entry point the program will be associated with
+  * @param[in]   entry_point_index   The entry point the program will be associated with
   * @param[in]   program             The ray generation program
   *
   * <B>Return values</B>
@@ -2229,7 +1923,7 @@ extern "C" {
   * @ref rtContextGetRayGenerationProgram
   *
   */
-  RTresult RTAPI rtContextSetRayGenerationProgram(RTcontext context, unsigned int entryPointIndex, RTprogram program);
+  RTresult RTAPI rtContextSetRayGenerationProgram(RTcontext context, unsigned int entry_point_index, RTprogram program);
 
   /**
   * @brief Queries the ray generation program
@@ -2245,7 +1939,7 @@ extern "C" {
   * invalid entry point index or \a NULL pointer.
   *
   * @param[in]   context             The context node associated with the ray generation program
-  * @param[in]   entryPointIndex     The entry point index for the desired ray generation program
+  * @param[in]   entry_point_index   The entry point index for the desired ray generation program
   * @param[out]  program             Return parameter to store the ray generation program
   *
   * <B>Return values</B>
@@ -2262,7 +1956,7 @@ extern "C" {
   * @ref rtContextSetRayGenerationProgram
   *
   */
-  RTresult RTAPI rtContextGetRayGenerationProgram(RTcontext context, unsigned int entryPointIndex, RTprogram* program);
+  RTresult RTAPI rtContextGetRayGenerationProgram(RTcontext context, unsigned int entry_point_index, RTprogram* program);
 
   /**
   * @brief Specifies the exception program for a given context entry point
@@ -2272,11 +1966,11 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextSetExceptionProgram sets \a context's exception program at entry point
-  * \a entryPointIndex. @ref RT_ERROR_INVALID_VALUE is returned if \a entryPointIndex
+  * \a entry_point_index. @ref RT_ERROR_INVALID_VALUE is returned if \a entry_point_index
   * is outside of the range [\a 0, @ref rtContextGetEntryPointCount \a -1].
   *
   * @param[in]   context             The context node to which the exception program will be added
-  * @param[in]   entryPointIndex     The entry point the program will be associated with
+  * @param[in]   entry_point_index   The entry point the program will be associated with
   * @param[in]   program             The exception program
   *
   * <B>Return values</B>
@@ -2300,7 +1994,7 @@ extern "C" {
   * @ref rtPrintExceptionDetails
   *
   */
-  RTresult RTAPI rtContextSetExceptionProgram(RTcontext context, unsigned int entryPointIndex, RTprogram program);
+  RTresult RTAPI rtContextSetExceptionProgram(RTcontext context, unsigned int entry_point_index, RTprogram program);
 
   /**
   * @brief Queries the exception program associated with
@@ -2316,7 +2010,7 @@ extern "C" {
   * entry point index or \a NULL pointer.
   *
   * @param[in]   context             The context node associated with the exception program
-  * @param[in]   entryPointIndex     The entry point index for the desired exception program
+  * @param[in]   entry_point_index   The entry point index for the desired exception program
   * @param[out]  program             Return parameter to store the exception program
   *
   * <B>Return values</B>
@@ -2339,7 +2033,7 @@ extern "C" {
   * @ref rtPrintExceptionDetails
   *
   */
-  RTresult RTAPI rtContextGetExceptionProgram(RTcontext context, unsigned int entryPointIndex, RTprogram* program);
+  RTresult RTAPI rtContextGetExceptionProgram(RTcontext context, unsigned int entry_point_index, RTprogram* program);
 
   /**
   * @brief Enable or disable an exception
@@ -2354,9 +2048,6 @@ extern "C" {
   * the type of the caught exception by calling @ref rtGetExceptionCode.
   * \a exception may take one of the following values:
   *
-  *   - @ref RT_EXCEPTION_PAYLOAD_ACCESS_OUT_OF_BOUNDS
-  *   - @ref RT_EXCEPTION_USER_EXCEPTION_CODE_OUT_OF_BOUNDS
-  *   - @ref RT_EXCEPTION_TRACE_DEPTH_EXCEEDED
   *   - @ref RT_EXCEPTION_TEXTURE_ID_INVALID
   *   - @ref RT_EXCEPTION_BUFFER_ID_INVALID
   *   - @ref RT_EXCEPTION_INDEX_OUT_OF_BOUNDS
@@ -2368,16 +2059,6 @@ extern "C" {
   *   - @ref RT_EXCEPTION_ALL
   *
   *
-  * @ref RT_EXCEPTION_PAYLOAD_ACCESS_OUT_OF_BOUNDS verifies that accesses to the ray payload are
-  * within valid bounds. This exception is only supported with the RTX execution strategy.
-  *
-  * @ref RT_EXCEPTION_USER_EXCEPTION_CODE_OUT_OF_BOUNDS verifies that the exception code passed
-  * to @ref rtThrow is within the valid range from RT_EXCEPTION_USER to RT_EXCEPTION_USER_MAX.
-  *
-  * @ref RT_EXCEPTION_TRACE_DEPTH_EXCEEDED verifies that the depth of the @ref rtTrace
-  * tree does not exceed the configured trace depth (see @ref rtContextSetMaxTraceDepth). This
-  * exception is only supported with the RTX execution strategy.
-  *
   * @ref RT_EXCEPTION_TEXTURE_ID_INVALID verifies that every access of a texture id is
   * valid, including use of RT_TEXTURE_ID_NULL and IDs out of bounds.
   *
@@ -2387,14 +2068,11 @@ extern "C" {
   * @ref RT_EXCEPTION_INDEX_OUT_OF_BOUNDS checks that @ref rtIntersectChild and @ref
   * rtReportIntersection are called with a valid index.
   *
-  * @ref RT_EXCEPTION_STACK_OVERFLOW checks the runtime stack against overflow. The most common
-  * cause for an overflow is a too small trace depth (see @ref rtContextSetMaxTraceDepth). In rare
-  * cases, stack overflows might not be detected unless @ref RT_EXCEPTION_TRACE_DEPTH_EXCEEDED is
-  * enabled as well.
+  * @ref RT_EXCEPTION_STACK_OVERFLOW checks the runtime stack against overflow. The most
+  * common cause for an overflow is a too deep @ref rtTrace recursion tree.
   *
   * @ref RT_EXCEPTION_BUFFER_INDEX_OUT_OF_BOUNDS checks every read and write access to
-  * @ref rtBuffer objects to be within valid bounds. This exception is supported with the RTX
-  * execution strategy only.
+  * @ref rtBuffer objects to be within valid bounds.
   *
   * @ref RT_EXCEPTION_INVALID_RAY checks the each ray's origin and direction values
   * against \a NaNs and \a infinity values.
@@ -2402,8 +2080,10 @@ extern "C" {
   * @ref RT_EXCEPTION_INTERNAL_ERROR indicates an unexpected internal error in the
   * runtime.
   *
-  * @ref RT_EXCEPTION_USER is used to enable or disable all user-defined exceptions. See
-  * @ref rtThrow for more information.
+  * @ref RT_EXCEPTION_USER is used to enable or disable all user-defined exceptions. The
+  * reserved range of exception codes for user-defined exceptions starts at @ref
+  * RT_EXCEPTION_USER (\a 0x400) and ends at \a 0xFFFF. See @ref rtThrow for more
+  * information.
   *
   * @ref RT_EXCEPTION_ALL is a placeholder value which can be used to enable or disable
   * all possible exceptions with a single call to @ref rtContextSetExceptionEnabled.
@@ -2431,8 +2111,7 @@ extern "C" {
   * @ref rtContextGetExceptionProgram,
   * @ref rtGetExceptionCode,
   * @ref rtThrow,
-  * @ref rtPrintExceptionDetails,
-  * @ref RTexception
+  * @ref rtPrintExceptionDetails
   *
   */
   RTresult RTAPI rtContextSetExceptionEnabled(RTcontext context, RTexception exception, int enabled);
@@ -2470,8 +2149,7 @@ extern "C" {
   * @ref rtContextGetExceptionProgram,
   * @ref rtGetExceptionCode,
   * @ref rtThrow,
-  * @ref rtPrintExceptionDetails,
-  * @ref RTexception
+  * @ref rtPrintExceptionDetails
   *
   */
   RTresult RTAPI rtContextGetExceptionEnabled(RTcontext context, RTexception exception, int* enabled);
@@ -2487,7 +2165,7 @@ extern "C" {
   * context.
   *
   * @param[in]   context         The context node
-  * @param[in]   rayTypeCount    The number of ray types to be used
+  * @param[in]   num_ray_types   The number of ray types to be used
   *
   * <B>Return values</B>
   *
@@ -2503,7 +2181,7 @@ extern "C" {
   * @ref rtContextGetRayTypeCount
   *
   */
-  RTresult RTAPI rtContextSetRayTypeCount(RTcontext context, unsigned int rayTypeCount);
+  RTresult RTAPI rtContextSetRayTypeCount(RTcontext context, unsigned int num_ray_types);
 
   /**
   * @brief Query the number of ray types associated with this
@@ -2514,11 +2192,11 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextGetRayTypeCount passes back the number of entry points associated with
-  * this context in \a rayTypeCount.  Returns @ref RT_ERROR_INVALID_VALUE if passed a \a
+  * this context in \a num_ray_types.  Returns @ref RT_ERROR_INVALID_VALUE if passed a \a
   * NULL pointer.
   *
   * @param[in]   context         The context node to be queried
-  * @param[out]  rayTypeCount    Return parameter to store the number of ray types
+  * @param[out]  num_ray_types   Return parameter to store the number of ray types
   *
   * <B>Return values</B>
   *
@@ -2534,7 +2212,7 @@ extern "C" {
   * @ref rtContextSetRayTypeCount
   *
   */
-  RTresult RTAPI rtContextGetRayTypeCount(RTcontext context, unsigned int* rayTypeCount);
+  RTresult RTAPI rtContextGetRayTypeCount(RTcontext context, unsigned int* num_ray_types);
 
   /**
   * @brief Specifies the miss program for a given context ray type
@@ -2544,11 +2222,11 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextSetMissProgram sets \a context's miss program associated with ray type
-  * \a rayTypeIndex. @ref RT_ERROR_INVALID_VALUE is returned if \a rayTypeIndex
+  * \a ray_type_index. @ref RT_ERROR_INVALID_VALUE is returned if \a ray_type_index
   * is outside of the range [\a 0, @ref rtContextGetRayTypeCount \a -1].
   *
   * @param[in]   context          The context node to which the miss program will be added
-  * @param[in]   rayTypeIndex     The ray type the program will be associated with
+  * @param[in]   ray_type_index   The ray type the program will be associated with
   * @param[in]   program          The miss program
   *
   * <B>Return values</B>
@@ -2568,7 +2246,7 @@ extern "C" {
   * @ref rtContextGetMissProgram
   *
   */
-  RTresult RTAPI rtContextSetMissProgram(RTcontext context, unsigned int rayTypeIndex, RTprogram program);
+  RTresult RTAPI rtContextSetMissProgram(RTcontext context, unsigned int ray_type_index, RTprogram program);
 
   /**
   * @brief Queries the miss program associated with the given
@@ -2583,7 +2261,7 @@ extern "C" {
   * Returns @ref RT_ERROR_INVALID_VALUE if given an invalid ray type index or a \a NULL pointer.
   *
   * @param[in]   context          The context node associated with the miss program
-  * @param[in]   rayTypeIndex     The ray type index for the desired miss program
+  * @param[in]   ray_type_index   The ray type index for the desired miss program
   * @param[out]  program          Return parameter to store the miss program
   *
   * <B>Return values</B>
@@ -2601,7 +2279,7 @@ extern "C" {
   * @ref rtContextGetRayTypeCount
   *
   */
-  RTresult RTAPI rtContextGetMissProgram(RTcontext context, unsigned int rayTypeIndex, RTprogram* program);
+  RTresult RTAPI rtContextGetMissProgram(RTcontext context, unsigned int ray_type_index, RTprogram* program);
 
   /**
   * @brief Gets an RTtexturesampler corresponding to the texture id
@@ -2611,12 +2289,12 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextGetTextureSamplerFromId returns a handle to the texture sampler in \a *sampler
-  * corresponding to the \a samplerId supplied.  If \a samplerId does not map to a valid
+  * corresponding to the \a sampler_id supplied.  If \a sampler_id does not map to a valid
   * texture handle, \a *sampler is \a NULL or if \a context is invalid, returns @ref RT_ERROR_INVALID_VALUE.
   *
   * @param[in]   context     The context the sampler should be originated from
-  * @param[in]   samplerId   The ID of the sampler to query
-  * @param[out]  sampler     The return handle for the sampler object corresponding to the samplerId
+  * @param[in]   sampler_id  The ID of the sampler to query
+  * @param[out]  sampler     The return handle for the sampler object corresponding to the sampler_id
   *
   * <B>Return values</B>
   *
@@ -2632,7 +2310,7 @@ extern "C" {
   * @ref rtTextureSamplerGetId
   *
   */
-  RTresult RTAPI rtContextGetTextureSamplerFromId(RTcontext context, int samplerId, RTtexturesampler* sampler);
+  RTresult RTAPI rtContextGetTextureSamplerFromId(RTcontext context, int sampler_id, RTtexturesampler* sampler);
 
   /**
   * Deprecated in OptiX 4.0. Calling this function has no effect. The kernel is automatically compiled at launch if needed.
@@ -2652,7 +2330,7 @@ extern "C" {
   * modified since the last compile, @ref rtContextLaunch "rtContextLaunch" will recompile the kernel
   * internally.  Acceleration structures of the context which are marked dirty will be
   * updated and their dirty flags will be cleared.  Similarly, validation will occur if
-  * necessary.  The ray generation program specified by \a entryPointIndex will be
+  * necessary.  The ray generation program specified by \a entry_point_index will be
   * invoked once for every element (pixel or voxel) of the computation grid specified by
   * \a width, \a height, and \a depth.
   *
@@ -2680,27 +2358,27 @@ extern "C" {
   /**
   * @ingroup rtContextLaunch
   * @param[in]   context                                    The context to be executed
-  * @param[in]   entryPointIndex                            The initial entry point into kernel
+  * @param[in]   entry_point_index                          The initial entry point into kernel
   * @param[in]   width                                      Width of the computation grid
   */
-  RTresult RTAPI rtContextLaunch1D(RTcontext context, unsigned int entryPointIndex, RTsize width);
+  RTresult RTAPI rtContextLaunch1D(RTcontext context, unsigned int entry_point_index, RTsize width);
   /**
   * @ingroup rtContextLaunch
   * @param[in]   context                                    The context to be executed
-  * @param[in]   entryPointIndex                            The initial entry point into kernel
+  * @param[in]   entry_point_index                          The initial entry point into kernel
   * @param[in]   width                                      Width of the computation grid
   * @param[in]   height                                     Height of the computation grid
   */
-  RTresult RTAPI rtContextLaunch2D(RTcontext context, unsigned int entryPointIndex, RTsize width, RTsize height);
+  RTresult RTAPI rtContextLaunch2D(RTcontext context, unsigned int entry_point_index, RTsize width, RTsize height);
   /**
   * @ingroup rtContextLaunch
   * @param[in]   context                                    The context to be executed
-  * @param[in]   entryPointIndex                            The initial entry point into kernel
+  * @param[in]   entry_point_index                          The initial entry point into kernel
   * @param[in]   width                                      Width of the computation grid
   * @param[in]   height                                     Height of the computation grid
   * @param[in]   depth                                      Depth of the computation grid
   */
-  RTresult RTAPI rtContextLaunch3D(RTcontext context, unsigned int entryPointIndex, RTsize width, RTsize height, RTsize depth);
+  RTresult RTAPI rtContextLaunch3D(RTcontext context, unsigned int entry_point_index, RTsize width, RTsize height, RTsize depth);
 
   /**
   * @brief Query whether the given context is currently
@@ -2739,7 +2417,7 @@ extern "C" {
   * <B>Description</B>
   *
   * Starts the (potentially parallel) generation of subframes for progressive rendering. If
-  * \a maxSubframes is zero, there is no limit on the number of subframes generated. The
+  * \a max_subframes is zero, there is no limit on the number of subframes generated. The
   * generated subframes are automatically composited into a single result and streamed to
   * the client at regular intervals, where they can be read by mapping an associated stream
   * buffer. An application can therefore initiate a progressive launch, and then repeatedly
@@ -2766,10 +2444,10 @@ extern "C" {
   * launches in order to avoid a large backlog in the command pipeline.
   *
   * @param[in]   context                The context in which the launch is to be executed
-  * @param[in]   entryIndex             The initial entry point into kernel
+  * @param[in]   entry_index            The initial entry point into kernel
   * @param[in]   width                  Width of the computation grid
   * @param[in]   height                 Height of the computation grid
-  * @param[in]   maxSubframes           The maximum number of subframes to be generated. Set to zero to generate an unlimited number of subframes
+  * @param[in]   max_subframes          The maximum number of subframes to be generated. Set to zero to generate an unlimited number of subframes
   *
   * <B>Return values</B>
   *
@@ -2788,7 +2466,7 @@ extern "C" {
   * @ref rtBufferGetProgressiveUpdateReady
   *
   */
-  RTresult RTAPI rtContextLaunchProgressive2D(RTcontext context, unsigned int entryIndex, RTsize width, RTsize height, unsigned int maxSubframes);
+  RTresult RTAPI rtContextLaunchProgressive2D(RTcontext context, unsigned int entry_index, RTsize width, RTsize height, unsigned int max_subframes);
 
   /**
   * @brief Stops a Progressive Launch
@@ -2909,7 +2587,7 @@ extern "C" {
   *
   *
   * @param[in]   context             The context for which to set the print buffer size
-  * @param[in]   bufferSizeBytes     The print buffer size in bytes
+  * @param[in]   buffer_size_bytes   The print buffer size in bytes
   *
   * <B>Return values</B>
   *
@@ -2930,7 +2608,7 @@ extern "C" {
   * @ref rtContextGetPrintLaunchIndex
   *
   */
-  RTresult RTAPI rtContextSetPrintBufferSize(RTcontext context, RTsize bufferSizeBytes);
+  RTresult RTAPI rtContextSetPrintBufferSize(RTcontext context, RTsize buffer_size_bytes);
 
   /**
   * @brief Get the current size of the print buffer
@@ -2944,7 +2622,7 @@ extern "C" {
   * NULL pointer.
   *
   * @param[in]   context             The context from which to query the print buffer size
-  * @param[out]  bufferSizeBytes     The returned print buffer size in bytes
+  * @param[out]  buffer_size_bytes   The returned print buffer size in bytes
   *
   * <B>Return values</B>
   *
@@ -2965,7 +2643,7 @@ extern "C" {
   * @ref rtContextGetPrintLaunchIndex
   *
   */
-  RTresult RTAPI rtContextGetPrintBufferSize(RTcontext context, RTsize* bufferSizeBytes);
+  RTresult RTAPI rtContextGetPrintBufferSize(RTcontext context, RTsize* buffer_size_bytes);
 
   /**
   * @brief Sets the active launch index to limit text output
@@ -3263,11 +2941,11 @@ extern "C" {
   *
   * @ref rtProgramCreateFromPTXString allocates and returns a handle to a new program
   * object.  The program is created from PTX code held in the \a NULL-terminated string \a
-  * ptx from function \a programName.
+  * ptx from function \a program_name.
   *
   * @param[in]   context        The context to create the program in
   * @param[in]   ptx            The string containing the PTX code
-  * @param[in]   programName    The name of the PTX function to create the program from
+  * @param[in]   program_name   The name of the PTX function to create the program from
   * @param[in]   program        Handle to the program to be created
   *
   * <B>Return values</B>
@@ -3286,51 +2964,10 @@ extern "C" {
   * <B>See also</B>
   * @ref RT_PROGRAM,
   * @ref rtProgramCreateFromPTXFile,
-  * @ref rtProgramCreateFromPTXFiles,
-  * @ref rtProgramCreateFromPTXStrings,
   * @ref rtProgramDestroy
   *
   */
-  RTresult RTAPI rtProgramCreateFromPTXString(RTcontext context, const char* ptx, const char* programName, RTprogram* program);
-
-  /**
-  * @brief Creates a new program object
-  *
-  * @ingroup Program
-  *
-  * <B>Description</B>
-  *
-  * @ref rtProgramCreateFromPTXStrings allocates and returns a handle to a new program
-  * object.  The program is created by linking PTX code held in one or more \a NULL-terminated strings.
-  * C-style linking rules apply: global functions and variables are visible across input strings and must
-  * be defined uniquely.  There must be a visible function for \a programName.
-  *
-  * @param[in]   context        The context to create the program in
-  * @param[in]   n              Number of ptx strings
-  * @param[in]   ptxStrings     Array of strings containing PTX code
-  * @param[in]   programName    The name of the PTX function to create the program from
-  * @param[in]   program        Handle to the program to be created
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  * - @ref RT_ERROR_INVALID_SOURCE
-  *
-  * <B>History</B>
-  *
-  * <B>See also</B>
-  * @ref RT_PROGRAM,
-  * @ref rtProgramCreateFromPTXFile,
-  * @ref rtProgramCreateFromPTXFiles,
-  * @ref rtProgramCreateFromPTXString,
-  * @ref rtProgramDestroy
-  *
-  */
-  RTresult RTAPI rtProgramCreateFromPTXStrings(RTcontext context, unsigned int n, const char** ptxStrings, const char* programName, RTprogram* program);
+  RTresult RTAPI rtProgramCreateFromPTXString(RTcontext context, const char* ptx, const char* program_name, RTprogram* program);
 
   /**
   * @brief Creates a new program object
@@ -3340,11 +2977,11 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtProgramCreateFromPTXFile allocates and returns a handle to a new program object.
-  * The program is created from PTX code held in \a filename from function \a programName.
+  * The program is created from PTX code held in \a filename from function \a program_name.
   *
   * @param[in]   context        The context to create the program in
   * @param[in]   filename       Path to the file containing the PTX code
-  * @param[in]   programName    The name of the PTX function to create the program from
+  * @param[in]   program_name   The name of the PTX function to create the program from
   * @param[in]   program        Handle to the program to be created
   *
   * <B>Return values</B>
@@ -3367,83 +3004,7 @@ extern "C" {
   * @ref rtProgramDestroy
   *
   */
-  RTresult RTAPI rtProgramCreateFromPTXFile(RTcontext context, const char* filename, const char* programName, RTprogram* program);
-
-  /**
-  * @brief Creates a new program object
-  *
-  * @ingroup Program
-  *
-  * <B>Description</B>
-  *
-  * @ref rtProgramCreateFromPTXFiles allocates and returns a handle to a new program object.
-  * The program is created by linking PTX code held in one or more files.
-  * C-style linking rules apply: global functions and variables are visible across input files and must
-  * be defined uniquely.  There must be a visible function for \a programName.
-  *
-  * @param[in]   context        The context to create the program in
-  * @param[in]   n              Number of filenames
-  * @param[in]   filenames      Array of one or more paths to files containing PTX code
-  * @param[in]   programName    The name of the PTX function to create the program from
-  * @param[in]   program        Handle to the program to be created
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  * - @ref RT_ERROR_INVALID_SOURCE
-  * - @ref RT_ERROR_FILE_NOT_FOUND
-  *
-  * <B>History</B>
-  *
-  * <B>See also</B>
-  * @ref RT_PROGRAM,
-  * @ref rtProgramCreateFromPTXString,
-  * @ref rtProgramCreateFromPTXStrings,
-  * @ref rtProgramCreateFromPTXFile,
-  * @ref rtProgramCreateFromProgram,
-  * @ref rtProgramDestroy
-  *
-  */
-  RTresult RTAPI rtProgramCreateFromPTXFiles(RTcontext context, unsigned int n, const char** filenames, const char* programName, RTprogram* program);
-
-    /**
-  * @brief Creates a new program object
-  *
-  * @ingroup Program
-  *
-  * <B>Description</B>
-  *
-  * @ref rtProgramCreateFromProgram allocates and returns a handle to a new program object.
-  * The program code is taken from another program, but none of the other attributes are taken.
-  *
-  * @param[in]   context        The context to create the program in
-  * @param[in]   program_in     The program whose program code to use.
-  * @param[in]   program_out    Handle to the program to be created
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * <B>See also</B>
-  * @ref RT_PROGRAM,
-  * @ref rtProgramCreateFromPTXString,
-  * @ref rtProgramCreateFromPTXStrings,
-  * @ref rtProgramCreateFromPTXFile,
-  * @ref rtProgramDestroy
-  *
-  */
-  RTresult RTAPI rtProgramCreateFromProgram(RTcontext context, RTprogram program_in, RTprogram* program_out);
-
+  RTresult RTAPI rtProgramCreateFromPTXFile(RTcontext context, const char* filename, const char* program_name, RTprogram* program);
 
   /**
   * @brief Destroys a program object
@@ -3736,13 +3297,13 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtProgramGetId returns an ID for the provided program.  The returned ID is used
-  * to reference \a program from device code.  If \a programId is \a NULL or the \a
+  * to reference \a program from device code.  If \a program_id is \a NULL or the \a
   * program is not a valid \a RTprogram, returns @ref RT_ERROR_INVALID_VALUE.
   * @ref RT_PROGRAM_ID_NULL can be used as a sentinel for a non-existent program, since
   * this value will never be returned as a valid program id.
   *
   * @param[in]   program      The program to be queried for its id
-  * @param[out]  programId    The returned ID of the program.
+  * @param[out]  program_id   The returned ID of the program.
   *
   * <B>Return values</B>
   *
@@ -3758,41 +3319,7 @@ extern "C" {
   * @ref rtContextGetProgramFromId
   *
   */
-  RTresult RTAPI rtProgramGetId(RTprogram program, int* programId);
-
-  /**
-  * @brief Sets the program ids that may potentially be called at a call site
-  *
-  * @ingroup Program
-  *
-  * <B>Description</B>
-  *
-  * @ref rtProgramCallsiteSetPotentialCallees specifies the program IDs of potential
-  * callees at the call site in the \a program identified by \a name to the list
-  * provided in \a ids. If \a program is bit a valid \a RTprogram or the \a program
-  * does not contain a call site with the identifier \a name or \a ids contains
-  * invalid program ids, returns @ref RT_ERROR_INVALID_VALUE.
-  *
-  * @param[in] program        The program that includes the call site.
-  * @param[in] name           The string identifier for the call site to modify.
-  * @param[in] ids            The program IDs of the programs that may potentially be called at the call site
-  * @param[in] numIds         The size of the array passed in for \a ids.
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtProgramCallsiteSetPotentialCallees was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtProgramGetId
-  *
-  */
-  RTresult RTAPI rtProgramCallsiteSetPotentialCallees( RTprogram program, const char* name, const int* ids, int numIds );
+  RTresult RTAPI rtProgramGetId(RTprogram program, int* program_id);
 
   /**
   * @brief Gets an RTprogram corresponding to the program id
@@ -3802,13 +3329,13 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtContextGetProgramFromId returns a handle to the program in \a *program
-  * corresponding to the \a programId supplied.  If \a programId is not a valid
+  * corresponding to the \a program_id supplied.  If \a program_id is not a valid
   * program handle, \a *program is set to \a NULL. Returns @ref RT_ERROR_INVALID_VALUE
-  * if \a context is invalid or \a programId is not a valid program handle.
+  * if \a context is invalid or \a program_id is not a valid program handle.
   *
   * @param[in]   context     The context the program should be originated from
-  * @param[in]   programId   The ID of the program to query
-  * @param[out]  program     The return handle for the program object corresponding to the programId
+  * @param[in]   program_id  The ID of the program to query
+  * @param[out]  program     The return handle for the program object corresponding to the program_id
   *
   * <B>Return values</B>
   *
@@ -3824,7 +3351,7 @@ extern "C" {
   * @ref rtProgramGetId
   *
   */
-  RTresult RTAPI rtContextGetProgramFromId(RTcontext context, int programId, RTprogram* program);
+  RTresult RTAPI rtContextGetProgramFromId(RTcontext context, int program_id, RTprogram* program);
 
 /************************************
  **
@@ -4001,68 +3528,6 @@ extern "C" {
   *
   */
   RTresult RTAPI rtGroupSetAcceleration(RTgroup group, RTacceleration acceleration);
-
-  /**
-   * @brief Sets the visibility mask for a group.
-   *
-   * @ingroup GroupNode
-   *
-   * <B>Description</B>
-   * Geometry is intersected by rays if the ray's @ref RTvisibilitymask shares at
-   * least one bit with the group's mask. This mechanism allows for a number of
-   * user-defined visibility groups that can be excluded from certain types of rays
-   * as needed.
-   * Note that the visibility mask is not checked for the root node of a trace call.
-   * (It is assumed to be visible otherwise trace should not be called).
-   * Note that the @pre mask is currently limited to 8 bits.
-   *
-   * @param[in] group   The group handle
-   * @param[in] mask    A set of bits for which rays will intersect the group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGroupSetVisibilityMask was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGeometryGroupSetVisibilityMask,
-   * @ref rtGroupGetVisibilityMask,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGroupSetVisibilityMask( RTgroup group, RTvisibilitymask mask );
-
-  /**
-   * @brief Retrieves the visibility mask of a group.
-   *
-   * @ingroup GroupNode
-   *
-   * <B>Description</B>
-   * See @ref rtGroupSetVisibilityMask for details.
-   *
-   * @param[in] group   The group handle
-   * @param[out] mask   A set of bits for which rays will intersect the group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGroupGetVisibilityMask was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGeometryGroupGetVisibilityMask,
-   * @ref rtGroupSetVisibilityMask,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGroupGetVisibilityMask( RTgroup group, RTvisibilitymask* mask );
 
   /**
   * @brief Returns the acceleration structure attached to a group
@@ -5060,7 +4525,7 @@ extern "C" {
   * node \a transform. The provided transformation matrix results in a
   * corresponding affine transformation of all geometry contained in the
   * sub-tree with \a transform as root. At least one of the pointers
-  * \a matrix and \a inverseMatrix must be non-\a NULL. If exactly one
+  * \a matrix and \a inverse_matrix must be non-\a NULL. If exactly one
   * pointer is valid, the other matrix will be computed. If both are
   * valid, the matrices will be used as-is. If \a transpose is \a 0,
   * source matrices are expected to be in row-major format, i.e., matrix
@@ -5079,10 +4544,10 @@ extern "C" {
   * Calling this function clears any motion keys previously set for the Transform.
   *
   * @param[in]   transform        Transform node handle
-  * @param[in]   transpose        Flag indicating whether \a matrix and \a inverseMatrix should be
+  * @param[in]   transpose        Flag indicating whether \a matrix and \a inverse_matrix should be
   * transposed
   * @param[in]   matrix           Affine matrix (4x4 float array)
-  * @param[in]   inverseMatrix    Inverted form of \a matrix
+  * @param[in]   inverse_matrix   Inverted form of \a matrix
   *
   * <B>Return values</B>
   *
@@ -5100,7 +4565,7 @@ extern "C" {
   * @ref rtTransformGetMatrix
   *
   */
-  RTresult RTAPI rtTransformSetMatrix(RTtransform transform, int transpose, const float* matrix, const float* inverseMatrix);
+  RTresult RTAPI rtTransformSetMatrix(RTtransform transform, int transpose, const float* matrix, const float* inverse_matrix);
 
   /**
   * @brief Returns the affine matrix and its inverse associated with a Transform node
@@ -5112,7 +4577,7 @@ extern "C" {
   * @ref rtTransformGetMatrix returns in \a matrix the affine matrix that
   * is currently used to perform a transformation of the geometry
   * contained in the sub-tree with \a transform as root. The corresponding
-  * inverse matrix will be returned in \a inverseMatrix. One or both
+  * inverse matrix will be retured in \a inverse_matrix. One or both
   * pointers are allowed to be \a NULL. If \a transpose is \a 0, matrices
   * are returned in row-major format, i.e., matrix rows are contiguously
   * laid out in memory. If \a transpose is non-zero, matrices are returned
@@ -5120,10 +4585,10 @@ extern "C" {
   * float array of at least 16 elements.
   *
   * @param[in]   transform        Transform node handle
-  * @param[in]   transpose        Flag indicating whether \a matrix and \a inverseMatrix should be
+  * @param[in]   transpose        Flag indicating whether \a matrix and \a inverse_matrix should be
   * transposed
   * @param[out]  matrix           Affine matrix (4x4 float array)
-  * @param[out]  inverseMatrix    Inverted form of \a matrix
+  * @param[out]  inverse_matrix   Inverted form of \a matrix
   *
   * <B>Return values</B>
   *
@@ -5141,7 +4606,7 @@ extern "C" {
   * @ref rtTransformSetMatrix
   *
   */
-  RTresult RTAPI rtTransformGetMatrix(RTtransform transform, int transpose, float* matrix, float* inverseMatrix);
+  RTresult RTAPI rtTransformGetMatrix(RTtransform transform, int transpose, float* matrix, float* inverse_matrix);
 
   /**
   * @brief Sets the motion time range for a Transform node
@@ -5222,12 +4687,12 @@ extern "C" {
   * correspond to timeBegin and timeEnd set with @ref rtTransformSetMotionRange.
   * The arguments are independent, and each has one of the following values:
   *
-  * - @ref RT_MOTIONBORDERMODE_CLAMP :
+  * - @ref RT_MOTIONBORDERMODE_CLAMP:
   *   The transform and the scene under it still exist at times less than timeBegin
   *   or greater than timeEnd, with the transform clamped to its values at timeBegin
   *   or timeEnd, respectively.
   *
-  * - @ref RT_MOTIONBORDERMODE_VANISH :
+  * - @ref RT_MOTIONBORDERMODE_VANISH:
   *   The transform and the scene under it vanish for times less than timeBegin
   *   or greater than timeEnd.
   *
@@ -5782,130 +5247,6 @@ extern "C" {
   RTresult RTAPI rtGeometryGroupGetAcceleration(RTgeometrygroup geometrygroup, RTacceleration* acceleration);
 
   /**
-   * @brief Sets instance flags for a geometry group.
-   *
-   * @ingroup GeometryGroup
-   *
-   * <B>Description</B>
-   *
-   * This function controls the @ref RTinstanceflags of the given geometry group.
-   * Note that flags are only considered when tracing against an RTgroup with this GeometryGroup
-   * as a child (potentially with Transforms).
-   * Tracing directly against the GeometryGroup will ignore the flags.
-   * The flags override the @ref RTgeometryflags of the underlying geometry where appropriate.
-   *
-   * @param[in] group   The group handle
-   * @param[in] flags   Instance flags for the given geometry group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGeometryGroupSetFlags was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGeometryTrianglesSetFlagsPerMaterial,
-   * @ref rtGeometrySetFlags,
-   * @ref rtGeometryGroupGetFlags,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGeometryGroupSetFlags( RTgeometrygroup group, RTinstanceflags flags );
-
-  /**
-   * @brief Gets instance flags of a geometry group.
-   *
-   * @ingroup GeometryGroup
-   *
-   * <B>Description</B>
-   *
-   * See @ref rtGeometryGroupSetFlags for details.
-   *
-   * @param[in] group   The group handle
-   * @param[out] flags  Instance flags for the given geometry group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGeometryGroupGetFlags was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGeometryGroupSetFlags,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGeometryGroupGetFlags( RTgeometrygroup group, RTinstanceflags* flags );
-
-  /**
-   * @brief Sets the visibility mask of a geometry group.
-   *
-   * @ingroup GeometryGroup
-   *
-   * <B>Description</B>
-   * Geometry is intersected by rays if the ray's @ref RTvisibilitymask shares at
-   * least one bit with the group's mask. This mechanism allows for a number of
-   * user-defined visibility groups that can be excluded from certain types of rays
-   * as needed.
-   * Note that the visibility mask is not checked for the root node of a trace call.
-   * (It is assumed to be visible otherwise trace should not be called).
-   * Note that the @pre mask is currently limited to 8 bits.
-   *
-   * @param[in] group   The group handle
-   * @param[in] mask    A set of bits for which rays will intersect the group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGeometryGroupSetVisibilityMask was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGroupSetVisibilityMask
-   * @ref rtGeometryGroupGetVisibilityMask,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGeometryGroupSetVisibilityMask( RTgeometrygroup group, RTvisibilitymask mask );
-
-  /**
-   * @brief Gets the visibility mask of a geometry group.
-   *
-   * @ingroup GeometryGroup
-   *
-   * <B>Description</B>
-   * See @ref rtGeometryGroupSetVisibilityMask for details/
-   *
-   * @param[in] group   The group handle
-   * @param[out] mask   A set of bits for which rays will intersect the group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGeometryGroupGetVisibilityMask was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGroupGetVisibilityMask
-   * @ref rtGeometryGroupSetVisibilityMask,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGeometryGroupGetVisibilityMask( RTgeometrygroup group, RTvisibilitymask* mask );
-
-  /**
   * @brief Sets the number of child nodes to be attached to the group
   *
   * @ingroup GeometryGroup
@@ -6242,12 +5583,12 @@ extern "C" {
   * @ref rtAccelerationGetBuilder returns the name of the builder currently
   * used in the acceleration structure \a acceleration. If no builder has
   * been set for \a acceleration, an empty string is returned.
-  * \a stringReturn will be set to point to the returned string. The
-  * memory \a stringReturn points to will be valid until the next API
+  * \a return_string will be set to point to the returned string. The
+  * memory \a return_string points to will be valid until the next API
   * call that returns a string.
   *
   * @param[in]   acceleration    The acceleration structure handle
-  * @param[out]  stringReturn    Return string buffer
+  * @param[out]  return_string   Return string buffer
   *
   * <B>Return values</B>
   *
@@ -6263,7 +5604,7 @@ extern "C" {
   * @ref rtAccelerationSetBuilder
   *
   */
-  RTresult RTAPI rtAccelerationGetBuilder(RTacceleration acceleration, const char** stringReturn);
+  RTresult RTAPI rtAccelerationGetBuilder(RTacceleration acceleration, const char** return_string);
 
   /**
   * Deprecated in OptiX 4.0. Setting a traverser is no longer necessary and will be ignored.
@@ -6275,7 +5616,7 @@ extern "C" {
   * Deprecated in OptiX 4.0.
   *
   */
-  RTresult RTAPI rtAccelerationGetTraverser(RTacceleration acceleration, const char** stringReturn);
+  RTresult RTAPI rtAccelerationGetTraverser(RTacceleration acceleration, const char** return_string);
 
   /**
   * @brief Sets an acceleration structure property
@@ -6378,13 +5719,13 @@ extern "C" {
   * @ref rtAccelerationGetProperty returns the value of the acceleration
   * structure property \a name.  See @ref rtAccelerationSetProperty for a
   * list of supported properties.  If the property name is not found, an
-  * empty string is returned.  \a stringReturn will be set to point to
-  * the returned string. The memory \a stringReturn points to will be
+  * empty string is returned.  \a return_string will be set to point to
+  * the returned string. The memory \a return_string points to will be
   * valid until the next API call that returns a string.
   *
   * @param[in]   acceleration    The acceleration structure handle
   * @param[in]   name            The name of the property to be queried
-  * @param[out]  stringReturn    Return string buffer
+  * @param[out]  return_string   Return string buffer
   *
   * <B>Return values</B>
   *
@@ -6401,7 +5742,7 @@ extern "C" {
   * @ref rtAccelerationSetBuilder,
   *
   */
-  RTresult RTAPI rtAccelerationGetProperty(RTacceleration acceleration, const char* name, const char** stringReturn);
+  RTresult RTAPI rtAccelerationGetProperty(RTacceleration acceleration, const char* name, const char** return_string);
 
   /**
   * Deprecated in OptiX 4.0. Should not be called.
@@ -6639,11 +5980,10 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtGeometryInstanceSetGeometry attaches a Geometry node to a GeometryInstance.
-  * Only one GeometryTriangles or Geometry node can be attached to a GeometryInstance at a time.
-  * However, it is possible at any time to attach a different GeometryTriangles or Geometry via
-  * rtGeometryInstanceSetGeometryTriangles or rtGeometryInstanceSetGeometry respectively.
+  * Only \a one Geometry node can be attached to a GeometryInstance. However, it is
+  * at any time possible to attach a different Geometry node.
   *
-  * @param[in]   geometryinstance   GeometryInstance node handle to attach \a geometry to
+  * @param[in]   geometryinstance   GeometryInstance node handle to attach geometry
   * @param[in]   geometry           Geometry handle to attach to \a geometryinstance
   *
   * <B>Return values</B>
@@ -6660,8 +6000,6 @@ extern "C" {
   *
   * <B>See also</B>
   * @ref rtGeometryInstanceGetGeometry
-  * @ref rtGeometryInstanceGetGeometryTriangles
-  * @ref rtGeometryInstanceSetGeometryTriangles
   *
   */
   RTresult RTAPI rtGeometryInstanceSetGeometry(RTgeometryinstance geometryinstance, RTgeometry geometry);
@@ -6674,7 +6012,7 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtGeometryInstanceGetGeometry sets \a geometry to the handle of the attached Geometry node.
-  * Only one GeometryTriangles or Geometry node can be attached to a GeometryInstance at a time.
+  * If no Geometry node is attached, @ref RT_ERROR_INVALID_VALUE is returned, else @ref RT_SUCCESS.
   *
   * @param[in]   geometryinstance   GeometryInstance node handle to query geometry
   * @param[out]  geometry           Handle to attached Geometry node
@@ -6696,82 +6034,9 @@ extern "C" {
   * @ref rtGeometryInstanceDestroy,
   * @ref rtGeometryInstanceValidate,
   * @ref rtGeometryInstanceSetGeometry
-  * @ref rtGeometryInstanceSetGeometryTriangles
-  * @ref rtGeometryInstanceGetGeometryTriangles
   *
   */
   RTresult RTAPI rtGeometryInstanceGetGeometry(RTgeometryinstance geometryinstance, RTgeometry* geometry);
-
-  /**
-  * @brief Attaches a Geometry node
-  *
-  * @ingroup GeometryInstance
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryInstanceSetGeometryTriangles attaches a GeometryTriangles node to a GeometryInstance.
-  * Only one GeometryTriangles or Geometry node can be attached to a GeometryInstance at a time.
-  * However, it is possible at any time to attach a different GeometryTriangles or Geometry via
-  * rtGeometryInstanceSetGeometryTriangles or rtGeometryInstanceSetGeometry respectively.
-  *
-  * @param[in]   geometryinstance   GeometryInstance node handle to attach \a geometrytriangles to
-  * @param[in]   geometrytriangles  GeometryTriangles handle to attach to \a geometryinstance
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryInstanceSetGeometryTriangles was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryInstanceGetGeometryTriangles
-  * @ref rtGeometryInstanceSetGeometry
-  * @ref rtGeometryInstanceGetGeometry
-  *
-  */
-  RTresult RTAPI rtGeometryInstanceSetGeometryTriangles(RTgeometryinstance geometryinstance, RTgeometrytriangles geometrytriangles);
-
-  /**
-  * @brief Returns the attached Geometry node
-  *
-  * @ingroup GeometryInstance
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryInstanceGetGeometryTriangles sets \a geometrytriangles to the handle of the attached GeometryTriangles node.
-  * If no GeometryTriangles node is attached or a Geometry node is attached, @ref RT_ERROR_INVALID_VALUE is returned, else @ref RT_SUCCESS.
-  *
-  * @param[in]   geometryinstance   GeometryInstance node handle to query geometrytriangles
-  * @param[out]  geometrytriangles  Handle to attached GeometryTriangles node
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryInstanceGetGeometryTriangles was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryInstanceCreate,
-  * @ref rtGeometryInstanceDestroy,
-  * @ref rtGeometryInstanceValidate,
-  * @ref rtGeometryInstanceSetGeometryTriangles
-  * @ref rtGeometryInstanceSetGeometry
-  * @ref rtGeometryInstanceGetGeometry
-  *
-  */
-  RTresult RTAPI rtGeometryInstanceGetGeometryTriangles(RTgeometryinstance geometryinstance, RTgeometrytriangles* geometrytriangles);
 
   /**
   * @brief Sets the number of materials
@@ -6815,7 +6080,7 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtGeometryInstanceGetMaterialCount returns for \a geometryinstance the number of attached
-  * Material nodes \a count. The number of materials can be set with @ref
+  * Material nodes \a count. The number of materies can be set with @ref
   * rtGeometryInstanceSetMaterialCount.
   *
   * @param[in]   geometryinstance   GeometryInstance node to query from the number of materials
@@ -7244,10 +6509,10 @@ extern "C" {
   *
   * <B>Description</B>
   *
-  * @ref rtGeometrySetPrimitiveCount sets the number of primitives \a primitiveCount in \a geometry.
+  * @ref rtGeometrySetPrimitiveCount sets the number of primitives \a num_primitives in \a geometry.
   *
   * @param[in]   geometry         The geometry node for which to set the number of primitives
-  * @param[in]   primitiveCount   The number of primitives
+  * @param[in]   num_primitives   The number of primitives
   *
   * <B>Return values</B>
   *
@@ -7265,7 +6530,7 @@ extern "C" {
   * @ref rtGeometryGetPrimitiveCount
   *
   */
-  RTresult RTAPI rtGeometrySetPrimitiveCount(RTgeometry geometry, unsigned int primitiveCount);
+  RTresult RTAPI rtGeometrySetPrimitiveCount(RTgeometry geometry, unsigned int num_primitives);
 
   /**
   * @brief Returns the number of primitives
@@ -7278,7 +6543,7 @@ extern "C" {
   * number of primitvies can be set with @ref rtGeometryGetPrimitiveCount.
   *
   * @param[in]   geometry         Geometry node to query from the number of primitives
-  * @param[out]  primitiveCount   Number of primitives
+  * @param[out]  num_primitives   Number of primitives
   *
   * <B>Return values</B>
   *
@@ -7296,7 +6561,7 @@ extern "C" {
   * @ref rtGeometrySetPrimitiveCount
   *
   */
-  RTresult RTAPI rtGeometryGetPrimitiveCount(RTgeometry geometry, unsigned int* primitiveCount);
+  RTresult RTAPI rtGeometryGetPrimitiveCount(RTgeometry geometry, unsigned int* num_primitives);
 
   /**
   * @brief Sets the primitive index offset
@@ -7306,16 +6571,16 @@ extern "C" {
   * <B>Description</B>
   *
   * @ref rtGeometrySetPrimitiveIndexOffset sets the primitive index offset
-  * \a indexOffset in \a geometry.  In the past, a @ref Geometry object's primitive
-  * index range always started at zero (i.e., a Geometry with \a N primitives would
+  * \a index_offset in \a geometry.  In the past, a @ref Geometry object's primitive
+  * index range always started at zero (e.g., a Geometry with \a N primitives would
   * have a primitive index range of [0,N-1]).  The index offset is used to allow
   * @ref Geometry objects to have primitive index ranges starting at non-zero
-  * positions (i.e., a Geometry with \a N primitives and an index offset of \a M
+  * positions (e.g., a Geometry with \a N primtives and and index offset of \a M
   * would have a primitive index range of [M,M+N-1]).  This feature enables the
   * sharing of vertex index buffers between multiple @ref Geometry objects.
   *
   * @param[in]   geometry       The geometry node for which to set the primitive index offset
-  * @param[in]   indexOffset    The primitive index offset
+  * @param[in]   index_offset   The primitive index offset
   *
   * <B>Return values</B>
   *
@@ -7332,7 +6597,7 @@ extern "C" {
   * @ref rtGeometryGetPrimitiveIndexOffset
   *
   */
-  RTresult RTAPI rtGeometrySetPrimitiveIndexOffset(RTgeometry geometry, unsigned int indexOffset);
+  RTresult RTAPI rtGeometrySetPrimitiveIndexOffset(RTgeometry geometry, unsigned int index_offset);
 
   /**
   * @brief Returns the current primitive index offset
@@ -7345,7 +6610,7 @@ extern "C" {
   * primitive index offset can be set with @ref rtGeometrySetPrimitiveIndexOffset.
   *
   * @param[in]   geometry       Geometry node to query for the primitive index offset
-  * @param[out]  indexOffset    Primitive index offset
+  * @param[out]  index_offset   Primitive index offset
   *
   * <B>Return values</B>
   *
@@ -7362,7 +6627,7 @@ extern "C" {
   * @ref rtGeometrySetPrimitiveIndexOffset
   *
   */
-  RTresult RTAPI rtGeometryGetPrimitiveIndexOffset(RTgeometry geometry, unsigned int* indexOffset);
+  RTresult RTAPI rtGeometryGetPrimitiveIndexOffset(RTgeometry geometry, unsigned int* index_offset);
 
   /**
   * @brief Sets the motion time range for a Geometry node.
@@ -7706,63 +6971,6 @@ extern "C" {
   RTresult RTAPI rtGeometryGetIntersectionProgram(RTgeometry geometry, RTprogram* program);
 
   /**
-   * @brief Sets geometry flags
-   *
-   * @ingroup Geometry
-   *
-   * <B>Description</B>
-   *
-   * See @ref rtGeometryTrianglesSetFlagsPerMaterial for a description of the behavior of the
-   * various flags.
-   *
-   * @param[in] geometry        The group handle
-   * @param[out] flags          Flags for the given geometry group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGeometrySetFlags was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGeometryTrianglesSetFlagsPerMaterial,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGeometrySetFlags( RTgeometry geometry, RTgeometryflags flags );
-
-  /**
-   * @brief Retrieves geometry flags
-   *
-   * @ingroup Geometry
-   *
-   * <B>Description</B>
-   *
-   * See @ref rtGeometrySetFlags for details.
-   *
-   * @param[in] geometry        The group handle
-   * @param[out] flags          Flags for the given geometry group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGeometryGetFlags was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGeometryTrianglesSetFlagsPerMaterial,
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGeometryGetFlags( RTgeometry geometry, RTgeometryflags* flags );
-
-  /**
   * Deprecated in OptiX 4.0. Calling this function has no effect.
   *
   */
@@ -7970,987 +7178,6 @@ extern "C" {
 
 /************************************
  **
- **    GeometryTriangles object
- **
- ***********************************/
-
-  /**
-  * @brief Creates a new GeometryTriangles node
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesCreate creates a new GeometryTriangles node within a context. \a context
-  * specifies the target context, and should be a value returned by @ref rtContextCreate.
-  * Sets \a *geometrytriangles to the handle of a newly created GeometryTriangles node within \a context.
-  * Returns @ref RT_ERROR_INVALID_VALUE if \a geometrytriangles is \a NULL.
-  *
-  * @param[in]   context            Specifies the rendering context of the GeometryTriangles node
-  * @param[out]  geometrytriangles  New GeometryTriangles node handle
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesCreate was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesDestroy,
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesCreate(RTcontext context, RTgeometrytriangles* geometrytriangles);
-
-  /**
-  * @brief Destroys a GeometryTriangles node
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesDestroy removes \a geometrytriangles from its context and deletes it.  \a geometrytriangles should
-  * be a value returned by @ref rtGeometryTrianglesCreate.  After the call, \a geometrytriangles is no longer a valid handle.
-  *
-  * @param[in]   geometrytriangles   Handle of the GeometryTriangles node to destroy
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesDestroy was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesCreate,
-  * @ref rtGeometryTrianglesSetPrimitiveCount,
-  * @ref rtGeometryTrianglesGetPrimitiveCount
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesDestroy(RTgeometrytriangles geometrytriangles);
-
-  /**
-  * @brief Validates the GeometryTriangles nodes integrity
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesValidate checks \a geometrytriangles for completeness. If \a geometrytriangles or any of the
-  * objects attached to \a geometrytriangles are not valid, returns @ref RT_ERROR_INVALID_VALUE.
-  *
-  * @param[in]   geometrytriangles   The GeometryTriangles node to be validated
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesValidate was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtContextValidate
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesValidate(RTgeometrytriangles geometrytriangles);
-
-  /**
-  * @brief Returns the context associated with a GeometryTriangles node
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesGetContext queries a GeometryTriangles node for its associated context.  \a geometrytriangles
-  * specifies the GeometryTriangles node to query, and should be a value returned by @ref
-  * rtGeometryTrianglesCreate. Sets \a *context to the context associated with \a geometrytriangles.
-  *
-  * @param[in]   geometrytriangles   Specifies the GeometryTriangles to query
-  * @param[out]  context             The context associated with \a geometrytriangles
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetContext was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesCreate
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetContext(RTgeometrytriangles geometrytriangles, RTcontext* context);
-
-  /**
-  * @brief Sets the primitive index offset
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetPrimitiveIndexOffset sets the primitive index offset
-  * \a indexOffset in \a geometrytriangles.
-  * With an offset of zero, a GeometryTriangles with \a N triangles has a primitive index range of [0,N-1].
-  * The index offset is used to allow GeometryTriangles objects to have primitive index ranges starting at non-zero
-  * positions (i.e., a GeometryTriangles with \a N triangles and an index offset of \a M
-  * has a primitive index range of [M,M+N-1]).
-  * Note that this offset only affects the primitive index that is reported in case of an intersection and does not
-  * affect the input data that is specified via @ref rtGeometryTrianglesSetVertices or @ref
-  * rtGeometryTrianglesSetTriangleIndices.
-  * This feature enables the packing of multiple Geometries or GeometryTriangles into a single buffer.
-  * While the same effect could be reached via a user variable, it is recommended to specify the offset via
-  * @ref rtGeometryTrianglesSetPrimitiveIndexOffset.
-  *
-  * @param[in]   geometrytriangles  The GeometryTriangles node for which to set the primitive index offset
-  * @param[in]   indexOffset        The primitive index offset
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetPrimitiveIndexOffset was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometrySetPrimitiveIndexOffset
-  * @ref rtGeometryTrianglesGetPrimitiveIndexOffset
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetPrimitiveIndexOffset(RTgeometrytriangles geometrytriangles, unsigned int indexOffset);
-
-  /**
-  * @brief Returns the current primitive index offset
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesGetPrimitiveIndexOffset returns for \a geometrytriangles the primitive index offset. The
-  * primitive index offset can be set with @ref rtGeometryTrianglesSetPrimitiveIndexOffset.
-  *
-  * @param[in]   geometrytriangles  GeometryTriangles node to query for the primitive index offset
-  * @param[out]  indexOffset        Primitive index offset
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetPrimitiveIndexOffset was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetPrimitiveIndexOffset
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetPrimitiveIndexOffset(RTgeometrytriangles geometrytriangles, unsigned int* indexOffset);
-
-  /**
-  * @brief Sets a pre-transform matrix
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetPreTransformMatrix can be used to bake a transformation for a mesh.
-  * Vertices of triangles are multiplied by the user-specified 3x4 matrix before the acceleration build.
-  * Note that the input triangle data stays untouched (set via @ref rtGeometryTrianglesSetVertices).
-  * Triangle intersection uses transformed triangles.
-  * The 3x4 matrix is expected to be in a row-major data layout, use the transpose option if \a matrix is in a column-major data layout.
-  * Use rtGeometryTrianglesSetPreTransformMatrix(geometrytriangles, false, 0); to unset a previously set matrix.
-  *
-  * @param[in]   geometrytriangles  Geometry node to query from the number of primitives
-  * @param[in]   transpose          If the input matrix is column-major and needs to be transposed before usage
-  * @param[in]   matrix             The 3x4 matrix that is used to transform the vertices
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetPreTransformMatrix was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetPreTransformMatrix
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetPreTransformMatrix( RTgeometrytriangles geometrytriangles, int transpose, const float* matrix );
-
-  /**
-  * @brief Gets a pre-transform matrix
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesGetPreTransformMatrix returns a previously set 3x4 matrix or the 'identity' matrix (with ones in the main diagonal of the 3x3 submatrix) if no matrix is set.
-  *
-  * @param[in]   geometrytriangles  Geometry node to query from the number of primitives
-  * @param[in]   transpose          Set to true if the output matrix is expected to be column-major rather than row-major
-  * @param[out]  matrix             The 3x4 matrix that is used to transform the vertices
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetPreTransformMatrix was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetPreTransformMatrix
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetPreTransformMatrix( RTgeometrytriangles geometrytriangles, int transpose, float* matrix );
-
-  /**
-  * @brief Sets the number of triangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetPrimitiveCount sets the number of triangles \a triangleCount in \a geometrytriangles.
-  * A triangle geometry is either a triangle soup for which every three vertices stored in the vertex buffer form a triangle,
-  * or indexed triangles are used for which three indices reference different vertices.
-  * In the latter case, an index buffer must be set (@ref rtGeometryTrianglesSetTriangleIndices).
-  * The vertices of the triangles are specified via one of the SetVertices functions.
-  *
-  * @param[in]   geometrytriangles  GeometryTriangles node for which to set the number of triangles
-  * @param[in]   triangleCount      Number of triangles
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetPrimitiveCount was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetPrimitiveCount
-  * @ref rtGeometrySetPrimitiveCount
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetPrimitiveCount( RTgeometrytriangles geometrytriangles, unsigned int triangleCount );
-
-  /**
-  * @brief Returns the number of triangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesGetPrimitiveCount returns the number of set triangles for \a geometrytriangles. The
-  * number of primitives can be set with @ref rtGeometryTrianglesSetPrimitiveCount.
-  *
-  * @param[in]   geometrytriangles  GeometryTriangles node to query from the number of primitives
-  * @param[out]  triangleCount      Number of triangles
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetPrimitiveCount was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetPrimitiveCount
-  * @ref rtGeometryGetPrimitiveCount
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetPrimitiveCount(RTgeometrytriangles geometrytriangles, unsigned int* triangleCount);
-
-  /**
-  * @brief Sets the index buffer of indexed triangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetTriangleIndices is used to set the index buffer for indexed triangles.
-  * Triplets of indices from buffer \a indexBuffer index vertices to form triangles.
-  * If the buffer is set, it is assumed that the geometry is given as indexed triangles.
-  * If the index buffer is not set, it is assumed that the geometry is given as a triangle soup.
-  * A previously set index buffer can be unset by passing NULL as \a indexBuffer parameter, e.g., rtGeometryTrianglesSetTriangleIndices( geometrytriangles, NULL, 0, 0, RT_FORMAT_UNSIGNED_INT3);
-  * Buffer \a indexBuffer is expected to hold 3 times \a triangleCount indices (see @ref rtGeometryTrianglesSetPrimitiveCount).
-  * Parameter \a indexBufferByteOffset can be used to specify a byte offset to the first index in buffer \a indexBuffer.
-  * Parameter \a triIndicesByteStride sets the stride in bytes between triplets of indices. There mustn't be any spacing between indices within a triplet, spacing is only supported between triplets.
-  * Parameter \a triIndicesFormat must be one of the following: RT_FORMAT_UNSIGNED_INT3, RT_FORMAT_UNSIGNED_SHORT3.
-  *
-  * @param[in]   geometrytriangles               GeometryTriangles node to query for the primitive index offset
-  * @param[in]   indexBuffer                     Buffer that holds the indices into the vertex buffer of the triangles
-  * @param[in]   indexBufferByteOffset           Offset in bytes to the first index in buffer indexBuffer
-  * @param[in]   triIndicesByteStride            Stride in bytes between triplets of indices
-  * @param[in]   triIndicesFormat                Format of the triplet of indices to index the vertices of a triangle
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetTriangleIndices was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetVertices
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetTriangleIndices(  RTgeometrytriangles geometrytriangles,
-                                                         RTbuffer            indexBuffer,
-                                                         RTsize              indexBufferByteOffset,
-                                                         RTsize              triIndicesByteStride,
-                                                         RTformat            triIndicesFormat );
-
-  /**
-  * @brief Sets the vertex buffer of a triangle soup
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetVertices interprets the buffer \a vertexBuffer as the vertices of triangles of the GeometryTriangles \a geometrytriangles.
-  * The number of vertices is set as \a vertexCount.
-  * If an index buffer is set, it is assumed that the geometry is given as indexed triangles.
-  * If the index buffer is not set, it is assumed that the geometry is given as a triangle soup and \a vertexCount must be 3 times triangleCount (see @ref rtGeometryTrianglesSetPrimitiveCount).
-  * Buffer \a vertexBuffer is expected to hold \a vertexCount vertices.
-  * Parameter \a vertexBufferByteOffset can be used to specify a byte offset to the position of the first vertex in buffer \a vertexBuffer.
-  * Parameter \a vertexByteStride sets the stride in bytes between vertices.
-  * Parameter \a positionFormat must be one of the following: RT_FORMAT_FLOAT3, RT_FORMAT_HALF3, RT_FORMAT_FLOAT2, RT_FORMAT_HALF2.
-  * In case of formats RT_FORMAT_FLOAT2 or RT_FORMAT_HALF2 the third component is assumed to be zero, which can be useful for planar geometry.
-  * Calling this function overrides any previous call to any of the set(Motion)Vertices functions.
-  *
-  * @param[in]   geometrytriangles            GeometryTriangles node to query for the primitive index offset
-  * @param[in]   vertexCount                  Number of vertices of the geometry
-  * @param[in]   vertexBuffer                 Buffer that holds the vertices of the triangles
-  * @param[in]   vertexBufferByteOffset       Offset in bytes to the first vertex in buffer vertexBuffer
-  * @param[in]   vertexByteStride             Stride in bytes between vertices
-  * @param[in]   positionFormat               Format of the position attribute of a vertex
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetVertices was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetTriangleIndices
-  * @ref rtGeometryTrianglesSetMotionVertices
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetVertices( RTgeometrytriangles geometrytriangles,
-                                                 unsigned int        vertexCount,
-                                                 RTbuffer            vertexBuffer,
-                                                 RTsize              vertexBufferByteOffset,
-                                                 RTsize              vertexByteStride,
-                                                 RTformat            positionFormat );
-
-  /**
-  * @brief Sets the vertex buffer of motion triangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetMotionVertices interprets the buffer \a vertexBuffer as the vertices of triangles of the GeometryTriangles \a geometrytriangles.
-  * The number of triangles for one motion step is set as \a vertexCount.
-  * Similar to it's non-motion counterpart, \a vertexCount must be 3 times \a triangleCount if no index buffer is set.
-  * The total number of vertices stored in \a vertexBuffer is \a vertexCount times \a motionStepCount (see @ref rtGeometryTrianglesSetMotionSteps).
-  * Triangles are linearly interpolated between motion steps.
-  * Parameter \a vertexBufferByteOffset can be used to specify a byte offset to the position of the first vertex of the first motion step in buffer \a vertexBuffer.
-  * Parameter \a vertexByteStride sets the stride in bytes between vertices within a motion step.
-  * Parameter \a vertexMotionStepByteStride sets the stride in bytes between motion steps for a single vertex.
-  * The stride parameters allow for two types of layouts of the motion data:
-  * a) serialized: vertexByteStride = sizeof(Vertex), vertexMotionStepByteStride = vertexCount * vertexByteStride
-  * b) interleaved: vertexMotionStepByteStride = sizeof(Vertex), vertexByteStride = sizeof(Vertex) * motion_steps
-  * Vertex N at time step i is at: vertexBuffer[N * vertexByteStride + i * vertexMotionStepByteStride + vertexBufferByteOffset]
-  * Parameter \a positionFormat must be one of the following: RT_FORMAT_FLOAT3, RT_FORMAT_HALF3, RT_FORMAT_FLOAT2, RT_FORMAT_HALF2.
-  * In case of formats RT_FORMAT_FLOAT2 or RT_FORMAT_HALF2 the third component is assumed to be zero, which can be useful for planar geometry.
-  * Calling this function overrides any previous call to any of the set(Motion)Vertices functions.
-  *
-  * @param[in]   geometrytriangles               GeometryTriangles node to query for the primitive index offset
-  * @param[in]   vertexCount                     Number of vertices for one motion step
-  * @param[in]   vertexBuffer                    Buffer that holds the vertices of the triangles for all motion steps
-  * @param[in]   vertexBufferByteOffset          Offset in bytes to the first vertex of the first motion step in buffer vertexBuffer
-  * @param[in]   vertexByteStride                Stride in bytes between vertices, belonging to the same motion step
-  * @param[in]   vertexMotionStepByteStride      Stride in bytes between vertices of the same triangle, but neighboring motion step
-  * @param[in]   positionFormat                  Format of the position attribute of a vertex
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetMotionVertices was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetVertices
-  * @ref rtGeometryTrianglesSetMotionVerticesMultiBuffer
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetMotionVertices( RTgeometrytriangles geometrytriangles,
-                                                       unsigned int        vertexCount,
-                                                       RTbuffer            vertexBuffer,
-                                                       RTsize              vertexBufferByteOffset,
-                                                       RTsize              vertexByteStride,
-                                                       RTsize              vertexMotionStepByteStride,
-                                                       RTformat            positionFormat );
-
-  /**
-  * @brief Sets the vertex buffer of motion triangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetMotionVerticesMultiBuffer can be used instead of @ref rtGeometryTrianglesSetMotionVertices if the vertices for the different motion steps are stored in separate buffers.
-  * Parameter \a vertexBuffers must point to an array of buffers of minimal size \a motionStepCount (see @ref rtGeometryTrianglesSetMotionSteps).
-  * All buffers must, however, share the same byte offset as well as vertex stride and position format.
-  * Calling this function overrides any previous call to any of the set(Motion)Vertices functions.
-  *
-  * @param[in]   geometrytriangles               GeometryTriangles node to query for the primitive index offset
-  * @param[in]   vertexCount                     Number of vertices for one motion step
-  * @param[in]   vertexBuffers                   Buffers that hold the vertices of the triangles per motion step
-  * @param[in]   vertexBufferCount               Number of buffers passed, must match the number of motion steps before a launch call
-  * @param[in]   vertexBufferByteOffset          Offset in bytes to the first vertex in every buffer vertexBuffers
-  * @param[in]   vertexByteStride                Stride in bytes between vertices, belonging to the same motion step
-  * @param[in]   positionFormat                  Format of the position attribute of a vertex
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetMotionVertices was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetVertices
-  * @ref rtGeometryTrianglesSetMotionVertices
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetMotionVerticesMultiBuffer( RTgeometrytriangles geometrytriangles,
-                                                                  unsigned int        vertexCount,
-                                                                  RTbuffer*           vertexBuffers,
-                                                                  unsigned int        vertexBufferCount,
-                                                                  RTsize              vertexBufferByteOffset,
-                                                                  RTsize              vertexByteStride,
-                                                                  RTformat            positionFormat );
-
-  /**
-  * @brief Sets the number of motion steps associated with a GeometryTriangles node
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesSetMotionSteps sets the number of motion steps as specified in \a motionStepCount
-  * associated with \a geometrytriangles.  Note that the default value is 1, not 0,
-  * for geometry without motion.
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[in]   motionStepCount      Number of motion steps, motionStepCount >= 1
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetMotionSteps was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetMotionVertices
-  * @ref rtGeometryTrianglesSetMotionVerticesMultiBuffer
-  * @ref rtGeometryTrianglesGetMotionSteps
-  * @ref rtGeometryTrianglesSetMotionBorderMode
-  * @ref rtGeometryTrianglesSetMotionRange
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetMotionSteps( RTgeometrytriangles geometrytriangles, unsigned int motionStepCount );
-
-  /**
-  * @brief Returns the number of motion steps associated with a GeometryTriangles node
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesGetMotionSteps returns in \a motionStepCount the number of motion steps
-  * associated with \a geometrytriangles.  Note that the default value is 1, not 0,
-  * for geometry without motion.
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[out]  motionStepCount      Number of motion steps motionStepCount >= 1
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetMotionSteps was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetMotionSteps
-  * @ref rtGeometryTrianglesGetMotionBorderMode
-  * @ref rtGeometryTrianglesGetMotionRange
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetMotionSteps( RTgeometrytriangles geometrytriangles, unsigned int* motionStepCount );
-
-  /**
-  * @brief Sets the motion time range for a GeometryTriangles node.
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * Sets the inclusive motion time range [timeBegin, timeEnd] for \a geometrytriangles,
-  * where timeBegin <= timeEnd.  The default time range is [0.0, 1.0].  The
-  * time range has no effect unless @ref rtGeometryTrianglesSetMotionVertices or
-  * @ref rtGeometryTrianglesSetMotionVerticesMultiBuffer with motionStepCount > 1 is
-  * called, in which case the time steps uniformly divide the time range.
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[out]  timeBegin            Beginning time value of range
-  * @param[out]  timeEnd              Ending time value of range
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetMotionRange was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetMotionRange
-  * @ref rtGeometryTrianglesSetMotionBorderMode
-  * @ref rtGeometryTrianglesGetMotionSteps
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetMotionRange( RTgeometrytriangles geometrytriangles, float timeBegin, float timeEnd );
-
-  /**
-  * @brief Returns the motion time range associated with a GeometryTriangles node.
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesGetMotionRange returns the motion time range associated with
-  * \a geometrytriangles from a previous call to @ref rtGeometryTrianglesSetMotionRange, or the
-  * default values of [0.0, 1.0].
-  *
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[out]  timeBegin            Beginning time value of range
-  * @param[out]  timeEnd              Ending time value of range
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetMotionRange was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetMotionRange
-  * @ref rtGeometryTrianglesGetMotionBorderMode
-  * @ref rtGeometryTrianglesGetMotionSteps
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetMotionRange( RTgeometrytriangles geometrytriangles, float* timeBegin, float* timeEnd );
-
-  /**
-  * @brief Sets the motion border modes of a GeometryTriangles node
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesSetMotionBorderMode sets the behavior of \a geometrytriangles
-  * outside its motion time range. Options are @ref RT_MOTIONBORDERMODE_CLAMP
-  * or @ref RT_MOTIONBORDERMODE_VANISH.  See @ref rtTransformSetMotionBorderMode
-  * for details.
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[in]   beginMode            Motion border mode at motion range begin
-  * @param[in]   endMode              Motion border mode at motion range end
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetMotionBorderMode was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetMotionBorderMode
-  * @ref rtGeometryTrianglesSetMotionRange
-  * @ref rtGeometryTrianglesGetMotionSteps
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetMotionBorderMode( RTgeometrytriangles geometrytriangles, RTmotionbordermode beginMode, RTmotionbordermode endMode );
-
-  /**
-  * @brief Returns the motion border modes of a GeometryTriangles node
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesGetMotionBorderMode returns the motion border modes
-  * for the time range associated with \a geometrytriangles.
-  *
-  * @param[in]   geometrytriangles   GeometryTriangles node handle
-  * @param[out]  beginMode           Motion border mode at motion range begin
-  * @param[out]  endMode             Motion border mode at motion range end
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetMotionBorderMode was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetMotionBorderMode
-  * @ref rtGeometryTrianglesGetMotionRange
-  * @ref rtGeometryTrianglesGetMotionSteps
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetMotionBorderMode( RTgeometrytriangles geometrytriangles, RTmotionbordermode* beginMode, RTmotionbordermode* endMode );
-
-  /**
-  * @brief Sets flags that influence the behavior of traversal
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesSetBuildFlags can be used to set object-specific flags that affect the acceleration-structure-build behavior.
-  * If parameter \a buildFlags contains the RT_GEOMETRY_BUILD_FLAG_RELEASE_BUFFERS flag, all buffers (including the vertex, index, and materialIndex buffer) holding
-  * information that is evaluated at acceleration-structure-build time will be released after the build.
-  * OptiX does not take ownership over the buffers, but simply frees the corresponding device memory.
-  * Sharing buffers with other GeometryTriangles nodes is possible if all of them are built within one OptiX launch.
-  * Note that it is the users responsibility that the buffers hold data for the next acceleration structure build if the acceleration structure is marked dirty.
-  * E.g., if the flag is set, an OptiX launch will cause the acceleration structure build and release the memory afterwards.
-  * If the acceleration structure is marked dirty before the next launch (e.g., due to refitting), the user needs to map the buffers before the launch to fill them with data.
-  * Further, there are certain configurations with motion when the buffers cannot be released in which case the flag is ignored and the data is not freed.
-  * The buffers can only be released if all GeometryTriangles belonging to a GeometryGroup have the same number of motion steps and equal motion begin / end times.
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[in]   buildFlags           The flags to set
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetBuildFlags was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetBuildFlags
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetBuildFlags( RTgeometrytriangles geometrytriangles, RTgeometrybuildflags buildFlags );
-
-  /**
-  * @brief Sets the number of materials used for the GeometryTriangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesGetMaterialCount returns the number of materials that are used with \a geometrytriangles.
-  * By default there is one material slot.
-
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[out]  numMaterials         Number of materials used with this GeometryTriangles node
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetMaterialCount was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetMaterialCount
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesGetMaterialCount( RTgeometrytriangles geometrytriangles, unsigned int* numMaterials );
-
-  /**
-  * @brief Sets the number of materials used for the GeometryTriangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesSetMaterialCount sets the number of materials that are used with \a geometrytriangles.
-  * By default there is one material slot.
-  * This number must be equal to the number of materials that is set at the GeometryInstance where \a geometrytriangles is attached to.
-  * Multi-material support for GeometryTriangles is limited to a fixed partition of the geometry into sets of triangles.
-  * Each triangle set maps to one material slot (within range [0, numMaterials-1]).
-  * The mapping is set via @ref rtGeometryTrianglesSetMaterialIndices.
-  * The actual materials are set at the GeometryInstance.
-  * The geometry can be instanced when attached to multiple GeometryInstances.
-  * In that case, the materials attached to each GeometryInstance can differ (effectively causing different materials per instance of the geometry).
-  * \a numMaterials must be >=1 and <=2^16.
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[in]   numMaterials         Number of materials used with this geometry
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetMaterialCount was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetMaterialCount
-  * @ref rtGeometryTrianglesSetMaterialIndices
-  * @ref rtGeometryTrianglesSetFlagsPerMaterial
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetMaterialCount( RTgeometrytriangles geometrytriangles, unsigned int numMaterials );
-
-
-  /**
-  * @brief Sets the index buffer of indexed triangles
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetMaterialIndices set the material slot per triangle of \a geometrytriangles.
-  * Hence, buffer \a materialIndexBuffer must hold triangleCount entries.
-  * Every material index must be in range [0, numMaterials-1] (see @ref rtGeometryTrianglesSetMaterialCount).
-  * Parameter \a materialIndexBufferByteOffset can be used to specify a byte offset to the first index in buffer \a materialIndexBuffer.
-  * Parameter \a materialIndexByteStride sets the stride in bytes between indices.
-  * Parameter \a materialIndexFormat must be one of the following: RT_FORMAT_UNSIGNED_INT, RT_FORMAT_UNSIGNED_SHORT, RT_FORMAT_UNSIGNED_BYTE.
-  * The buffer is only used if the number of materials as set via @ref rtGeometryTrianglesSetMaterialCount is larger than one.
-  *
-  * @param[in]   geometrytriangles                   GeometryTriangles node to query for the primitive index offset
-  * @param[in]   materialIndexBuffer                 Buffer that holds the indices into the vertex buffer of the triangles
-  * @param[in]   materialIndexBufferByteOffset       Offset to first index in buffer indexBuffer
-  * @param[in]   materialIndexByteStride             Stride in bytes between triplets of indices
-  * @param[in]   materialIndexFormat                 Format of the triplet of indices to index the vertices of a triangle
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetMaterialIndices was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetMaterialCount
-  * @ref rtGeometryTrianglesSetFlagsPerMaterial
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetMaterialIndices( RTgeometrytriangles geometrytriangles,
-                                                        RTbuffer            materialIndexBuffer,
-                                                        RTsize              materialIndexBufferByteOffset,
-                                                        RTsize              materialIndexByteStride,
-                                                        RTformat            materialIndexFormat );
-
-  /**
-  * @brief Sets geometry-specific flags that influence the behavior of traversal
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  * @ref rtGeometryTrianglesSetFlagsPerMaterial can be used to set geometry-specific flags that may
-  * change the behavior of traversal when intersecting the geometry.
-  * Note that the flags are evaluated at acceleration structure build time.
-  * An acceleration must be marked dirty for changes to the flags to take effect.
-  * Setting the flags RT_GEOMETRY_FLAG_NO_SPLITTING and/or RT_GEOMETRY_FLAG_DISABLE_ANYHIT should be dependent on the
-  * material that is used for the intersection.
-  * Therefore, the flags are set per material slot (with the actual material binding being set on the GeomteryInstance).
-  * If the geometry is instanced and different instances apply different materials to the geometry, the per-material geometry-specific flags
-  * need to apply to the materials of all instances.
-  * Example with two instances with each having two materials, node graph:
-  *        G
-  *       / \
-  *      /   \
-  *     T0    T1
-  *     |     |
-  *    GG0-A-GG1
-  *     |     |
-  * M0-GI0   GI1-M2
-  *    /  \ /  \
-  *  M1    GT   M3
-  * with: G-Group, GG-GeometryGroup, T-Transform, A-Acceleration, GI-GeometryInstance, M-Material, GT-GeometryTriangles
-  * RT_GEOMETRY_FLAG_NO_SPLITTING needs to be set for material index 0, if M0 or M2 require it.
-  * RT_GEOMETRY_FLAG_DISABLE_ANYHIT should be set for material index 0, if M0 and M2 allow it.
-  * RT_GEOMETRY_FLAG_NO_SPLITTING needs to be set for material index 1, if M1 or M3 require it.
-  * RT_GEOMETRY_FLAG_DISABLE_ANYHIT should be set for material index 1, if M1 and M3 allow it.
-  *
-  * Setting RT_GEOMETRY_FLAG_NO_SPLITTING prevents splitting the primitive during the acceleration structure build.
-  * Splitting is done to increase performance, but as a side-effect may result in multiple executions of
-  * the any-hit program for a single intersection.
-  * To avoid further side effects (e.g., multiple accumulations of a value) that may result of a multiple execution,
-  * RT_GEOMETRY_FLAG_NO_SPLITTING needs to be set.
-  * RT_GEOMETRY_FLAG_DISABLE_ANYHIT is an optimization due to which the execution of the any-hit program is skipped.
-  * If possible, the flag should be set.
-  * Note that if no any-hit program is set on a material by the user, a no-op any-hit program will be used.
-  * Therefore, this flag still needs to be set to skip the execution of any any-hit program.
-  * An automatic determination of whether to set the DISABLE_ANYHIT flag is not possible since the information
-  * whether or not to skip the any-hit program depends on the materials that are used, and this information
-  * may not be available at acceleration build time.
-  * For example, materials can change afterwards (e.g., between frames) without a rebuild of an acceleration.
-  * Note that the final decision whether or not to execute the any-hit program at run time also depends on the flags set on
-  * the ray as well as the geometry group that this geometry is part of.
-  *
-  * @param[in]   geometrytriangles    GeometryTriangles node handle
-  * @param[in]   materialIndex        The material index for which to set the flags
-  * @param[in]   flags                The flags to set.
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetFlagsPerMaterial was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesSetMaterialCount
-  * @ref rtGeometryTrianglesSetMaterialIndices
-  * @ref rtGeometryTrianglesSetBuildFlags
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetFlagsPerMaterial( RTgeometrytriangles geometrytriangles,
-                                                         unsigned int        materialIndex,
-                                                         RTgeometryflags     flags );
-
-  /**
-   * @brief Gets geometry flags for triangles.
-   *
-   * @ingroup GeometryTriangles
-   *
-   * <B>Description</B>
-   *
-   * See @ref rtGeometryTrianglesSetFlagsPerMaterial for details.
-   *
-   * @param[in] triangles       The triangles handle
-   * @param[in] materialIndex   The index of the material for which to retrieve the flags
-   * @param[out] flags          Flags for the given geometry group
-   *
-   * <B>Return values</B>
-   *
-   * Relevant return values:
-   * - @ref RT_SUCCESS
-   * - @ref RT_ERROR_INVALID_VALUE
-   *
-   * <B>History</B>
-   *
-   * @ref rtGeometryTrianglesGetFlagsPerMaterial was introduced in OptiX 6.0.
-   *
-   * <B>See also</B>
-   * @ref rtGeometryTrianglesSetFlagsPerMaterial,
-   * @ref rtGeometryTrianglesSetMaterialIndices
-   * @ref rtTrace
-   */
-  RTresult RTAPI rtGeometryTrianglesGetFlagsPerMaterial( RTgeometrytriangles triangles,
-                                                         unsigned int        materialIndex,
-                                                         RTgeometryflags*    flags );
-
-  /************************************
- **
  **    Material object
  **
  ***********************************/
@@ -9083,24 +7310,24 @@ extern "C" {
   RTresult RTAPI rtMaterialGetContext(RTmaterial material, RTcontext* context);
 
   /**
-  * @brief Sets the closest-hit program associated with a (material, ray type) tuple
+  * @brief Sets the closest hit program associated with a (material, ray type) tuple
   *
   * @ingroup Material
   *
   * <B>Description</B>
   *
-  * @ref rtMaterialSetClosestHitProgram specifies a closest-hit program to associate
+  * @ref rtMaterialSetClosestHitProgram specifies a closest hit program to associate
   * with a (material, ray type) tuple. \a material specifies the material of
   * interest and should be a value returned by @ref rtMaterialCreate.
-  * \a rayTypeIndex specifies the type of ray to which the program applies and
+  * \a ray_type_index specifies the type of ray to which the program applies and
   * should be a value less than the value returned by @ref rtContextGetRayTypeCount.
-  * \a program specifies the target closest-hit program which applies to
-  * the tuple (\a material, \a rayTypeIndex) and should be a value returned by
+  * \a program specifies the target closest hit program which applies to
+  * the tuple (\a material, \a ray_type_index) and should be a value returned by
   * either @ref rtProgramCreateFromPTXString or @ref rtProgramCreateFromPTXFile.
   *
   * @param[in]   material         Specifies the material of the (material, ray type) tuple to modify
-  * @param[in]   rayTypeIndex     Specifies the ray type of the (material, ray type) tuple to modify
-  * @param[in]   program          Specifies the closest-hit program to associate with the (material, ray type) tuple
+  * @param[in]   ray_type_index   Specifies the ray type of the (material, ray type) tuple to modify
+  * @param[in]   program          Specifies the closest hit program to associate with the (material, ray type) tuple
   *
   * <B>Return values</B>
   *
@@ -9123,27 +7350,27 @@ extern "C" {
   * @ref rtProgramCreateFromPTXFile
   *
   */
-  RTresult RTAPI rtMaterialSetClosestHitProgram(RTmaterial material, unsigned int rayTypeIndex, RTprogram program);
+  RTresult RTAPI rtMaterialSetClosestHitProgram(RTmaterial material, unsigned int ray_type_index, RTprogram program);
 
   /**
-  * @brief Returns the closest-hit program associated with a (material, ray type) tuple
+  * @brief Returns the closest hit program associated with a (material, ray type) tuple
   *
   * @ingroup Material
   *
   * <B>Description</B>
   *
-  * @ref rtMaterialGetClosestHitProgram queries the closest-hit program associated
+  * @ref rtMaterialGetClosestHitProgram queries the closest hit program associated
   * with a (material, ray type) tuple. \a material specifies the material of
   * interest and should be a value returned by @ref rtMaterialCreate.
-  * \a rayTypeIndex specifies the target ray type and should be a value
+  * \a ray_type_index specifies the target ray type and should be a value
   * less than the value returned by @ref rtContextGetRayTypeCount.
   * If all parameters are valid, \a *program sets to the handle of the
-  * any-hit program associated with the tuple (\a material, \a rayTypeIndex).
+  * any hit program associated with the tuple (\a material, \a ray_type_index).
   * Otherwise, the call has no effect and returns @ref RT_ERROR_INVALID_VALUE.
   *
   * @param[in]   material         Specifies the material of the (material, ray type) tuple to query
-  * @param[in]   rayTypeIndex     Specifies the type of ray of the (material, ray type) tuple to query
-  * @param[out]  program          Returns the closest-hit program associated with the (material, ray type) tuple
+  * @param[in]   ray_type_index   Specifies the type of ray of the (material, ray type) tuple to query
+  * @param[out]  program          Returns the closest hit program associated with the (material, ray type) tuple
   *
   * <B>Return values</B>
   *
@@ -9161,27 +7388,27 @@ extern "C" {
   * @ref rtContextGetRayTypeCount
   *
   */
-  RTresult RTAPI rtMaterialGetClosestHitProgram(RTmaterial material, unsigned int rayTypeIndex, RTprogram* program);
+  RTresult RTAPI rtMaterialGetClosestHitProgram(RTmaterial material, unsigned int ray_type_index, RTprogram* program);
 
   /**
-  * @brief Sets the any-hit program associated with a (material, ray type) tuple
+  * @brief Sets the any hit program associated with a (material, ray type) tuple
   *
   * @ingroup Material
   *
   * <B>Description</B>
   *
-  * @ref rtMaterialSetAnyHitProgram specifies an any-hit program to associate with a
+  * @ref rtMaterialSetAnyHitProgram specifies an any hit program to associate with a
   * (material, ray type) tuple. \a material specifies the target material and
-  * should be a value returned by @ref rtMaterialCreate. \a rayTypeIndex specifies
+  * should be a value returned by @ref rtMaterialCreate. \a ray_type_index specifies
   * the type of ray to which the program applies and should be a value less than
   * the value returned by @ref rtContextGetRayTypeCount. \a program specifies the
-  * target any-hit program which applies to the tuple (\a material,
-  * \a rayTypeIndex) and should be a value returned by either
+  * target any hit program which applies to the tuple (\a material,
+  * \a ray_type_index) and should be a value returned by either
   * @ref rtProgramCreateFromPTXString or @ref rtProgramCreateFromPTXFile.
   *
   * @param[in]   material         Specifies the material of the (material, ray type) tuple to modify
-  * @param[in]   rayTypeIndex     Specifies the type of ray of the (material, ray type) tuple to modify
-  * @param[in]   program          Specifies the any-hit program to associate with the (material, ray type) tuple
+  * @param[in]   ray_type_index   Specifies the type of ray of the (material, ray type) tuple to modify
+  * @param[in]   program          Specifies the any hit program to associate with the (material, ray type) tuple
   *
   * <B>Return values</B>
   *
@@ -9204,27 +7431,27 @@ extern "C" {
   * @ref rtProgramCreateFromPTXFile
   *
   */
-  RTresult RTAPI rtMaterialSetAnyHitProgram(RTmaterial material, unsigned int rayTypeIndex, RTprogram program);
+  RTresult RTAPI rtMaterialSetAnyHitProgram(RTmaterial material, unsigned int ray_type_index, RTprogram program);
 
   /**
-  * @brief Returns the any-hit program associated with a (material, ray type) tuple
+  * @brief Returns the any hit program associated with a (material, ray type) tuple
   *
   * @ingroup Material
   *
   * <B>Description</B>
   *
-  * @ref rtMaterialGetAnyHitProgram queries the any-hit program associated
+  * @ref rtMaterialGetAnyHitProgram queries the any hit program associated
   * with a (material, ray type) tuple. \a material specifies the material of
   * interest and should be a value returned by @ref rtMaterialCreate.
-  * \a rayTypeIndex specifies the target ray type and should be a value
+  * \a ray_type_index specifies the target ray type and should be a value
   * less than the value returned by @ref rtContextGetRayTypeCount.
   * if all parameters are valid, \a *program sets to the handle of the
-  * any-hit program associated with the tuple (\a material, \a rayTypeIndex).
+  * any hit program associated with the tuple (\a material, \a ray_type_index).
   * Otherwise, the call has no effect and returns @ref RT_ERROR_INVALID_VALUE.
   *
   * @param[in]   material         Specifies the material of the (material, ray type) tuple to query
-  * @param[in]   rayTypeIndex     Specifies the type of ray of the (material, ray type) tuple to query
-  * @param[out]  program          Returns the any-hit program associated with the (material, ray type) tuple
+  * @param[in]   ray_type_index   Specifies the type of ray of the (material, ray type) tuple to query
+  * @param[out]  program          Returns the any hit program associated with the (material, ray type) tuple
   *
   * <B>Return values</B>
   *
@@ -9242,7 +7469,7 @@ extern "C" {
   * @ref rtContextGetRayTypeCount
   *
   */
-  RTresult RTAPI rtMaterialGetAnyHitProgram(RTmaterial material, unsigned int rayTypeIndex, RTprogram* program);
+  RTresult RTAPI rtMaterialGetAnyHitProgram(RTmaterial material, unsigned int ray_type_index, RTprogram* program);
 
   /**
   * @brief Declares a new named variable to be associated with a material
@@ -9472,52 +7699,6 @@ extern "C" {
   RTresult RTAPI rtTextureSamplerCreate(RTcontext context, RTtexturesampler* texturesampler);
 
   /**
-  * @brief Structure describing a block of demand loaded memory.
-  *
-  * @ingroup Buffer
-  *
-  * <B>Description</B>
-  *
-  * @ref \RTmemoryblock describes a one-, two- or three-dimensional block of bytes in memory
-  * for a \a mipLevel that are interpreted as elements of \a format.
-  *
-  * The region is defined by the elements beginning at (x, y, z) and extending to
-  * (x + width - 1, y + height - 1, z + depth - 1).  The element size must be taken into account
-  * when computing addresses into the memory block based on the size of elements.  There is no
-  * padding between elements within a row, e.g. along the x direction.
-  *
-  * The starting address of the block is given by \a baseAddress and data is stored at addresses
-  * increasing from \a baseAddress.  One-dimensional blocks ignore the \a rowPitch and
-  * \a planePitch members and are described entirely by the \a baseAddress of the block.  Two
-  * dimensional blocks have contiguous bytes in every row, starting with \a baseAddress, but
-  * may have gaps between subsequent rows along the height dimension.  The \a rowPitch describes
-  * the offset in bytes between subsequent rows within the two-dimensional block.  Similarly,
-  * the \a planePitch describes the offset in bytes between subsequent planes within the depth
-  * dimension.
-  *
-  * <B>History</B>
-  *
-  * @ref RTmemoryblock was introduced in OptiX 6.1
-  *
-  * <B>See also</B>
-  * @ref RTbuffercallback
-  * @ref RTtexturesamplercallback
-  */
-  typedef struct {
-    RTformat format;
-    void* baseAddress;
-    unsigned int mipLevel;
-    unsigned int x;
-    unsigned int y;
-    unsigned int z;
-    unsigned int width;
-    unsigned int height;
-    unsigned int depth;
-    unsigned int rowPitch;
-    unsigned int planePitch;
-  } RTmemoryblock;
-
-  /**
   * @brief Destroys a texture sampler object
   *
   * @ingroup TextureSampler
@@ -9615,25 +7796,25 @@ extern "C" {
   * Deprecated in OptiX 3.9. Use @ref rtBufferSetMipLevelCount instead.
   *
   */
-  RTresult RTAPI rtTextureSamplerSetMipLevelCount(RTtexturesampler texturesampler, unsigned int mipLevelCount);
+  RTresult RTAPI rtTextureSamplerSetMipLevelCount(RTtexturesampler texturesampler, unsigned int num_mip_levels);
 
   /**
   * Deprecated in OptiX 3.9. Use @ref rtBufferGetMipLevelCount instead.
   *
   */
-  RTresult RTAPI rtTextureSamplerGetMipLevelCount(RTtexturesampler texturesampler, unsigned int* mipLevelCount);
+  RTresult RTAPI rtTextureSamplerGetMipLevelCount(RTtexturesampler texturesampler, unsigned int* num_mip_levels);
 
   /**
   * Deprecated in OptiX 3.9. Use texture samplers with layered buffers instead. See @ref rtBufferCreate.
   *
   */
-  RTresult RTAPI rtTextureSamplerSetArraySize(RTtexturesampler texturesampler, unsigned int textureCount);
+  RTresult RTAPI rtTextureSamplerSetArraySize(RTtexturesampler texturesampler, unsigned int num_textures_in_array);
 
   /**
   * Deprecated in OptiX 3.9. Use texture samplers with layered buffers instead. See @ref rtBufferCreate.
   *
   */
-  RTresult RTAPI rtTextureSamplerGetArraySize(RTtexturesampler texturesampler, unsigned int* textureCount);
+  RTresult RTAPI rtTextureSamplerGetArraySize(RTtexturesampler texturesampler, unsigned int* num_textures_in_array);
 
   /**
   * @brief Sets the wrapping mode of a texture sampler
@@ -10189,10 +8370,10 @@ extern "C" {
   * @ref rtTextureSamplerGetId returns a handle to the texture sampler
   * \a texturesampler to be used in OptiX programs on the device to
   * reference the associated texture. The returned ID cannot be used on
-  * the host side. If \a textureId is \a NULL, returns @ref RT_ERROR_INVALID_VALUE.
+  * the host side. If \a texture_id is \a NULL, returns @ref RT_ERROR_INVALID_VALUE.
   *
   * @param[in]   texturesampler   The texture sampler object to be queried for its ID
-  * @param[out]  textureId        The returned device-side texture ID of the texture sampler
+  * @param[out]  texture_id       The returned device-side texture ID of the texture sampler
   *
   * <B>Return values</B>
   *
@@ -10208,7 +8389,7 @@ extern "C" {
   * @ref rtTextureSamplerCreate
   *
   */
-  RTresult RTAPI rtTextureSamplerGetId(RTtexturesampler texturesampler, int* textureId);
+  RTresult RTAPI rtTextureSamplerGetId(RTtexturesampler texturesampler, int* texture_id);
 
 /************************************
  **
@@ -10260,12 +8441,12 @@ extern "C" {
   * the user can change the buffer's content on that device through the pointer. OptiX must then synchronize the new buffer contents to all devices.
   * These synchronization copies occur at every @ref rtContextLaunch "rtContextLaunch", unless the buffer is created with @ref RT_BUFFER_COPY_ON_DIRTY.
   * In this case, @ref rtBufferMarkDirty can be used to notify OptiX that the buffer has been dirtied and must be synchronized.
-  *
-  * The flag @ref RT_BUFFER_DISCARD_HOST_MEMORY can only be used in combination with @ref RT_BUFFER_INPUT. The data will be
-  * synchronized to the devices as soon as the buffer is unmapped from the host using @ref rtBufferUnmap or
-  * @ref rtBufferUnmapEx and the memory allocated on the host will be deallocated.
-  * It is preferred to map buffers created with the @ref RT_BUFFER_DISCARD_HOST_MEMORY using @ref rtBufferMapEx with the
-  * @ref RT_BUFFER_MAP_WRITE_DISCARD option enabled. If it is mapped using @ref rtBufferMap or the @ref RT_BUFFER_MAP_WRITE
+
+  * The flag @ref RT_BUFFER_DISCARD_HOST_MEMORY can only be used in combination with @ref RT_BUFFER_INPUT. The data will be 
+  * synchronized to the devices as soon as the buffer is unmapped from the host using @ref rtBufferUnmap or 
+  * @ref rtBufferUnmapEx and the memory allocated on the host will be deallocated. 
+  * It is preferred to map buffers created with the @ref RT_BUFFER_DISCARD_FLAG using @ref rtBufferMapEx with the 
+  * @ref RT_BUFFER_MAP_WRITE_DISCARD option enabled. If it is mapped using @rtBufferMap or the @ref RT_BUFFER_MAP_WRITE
   * option instead, the data needs to be synchronized to the host during mapping.
   * Note that the data that is allocated on the devices will not be deallocated until the buffer is destroyed.
   *
@@ -10297,96 +8478,6 @@ extern "C" {
   *
   */
   RTresult RTAPI rtBufferCreate(RTcontext context, unsigned int bufferdesc, RTbuffer* buffer);
-
-  /**
-  * @brief Callback function used to demand load data for a buffer.
-  *
-  * @ingroup Buffer
-  *
-  * <B>Description</B>
-  *
-  * @ref RTbuffercallback is implemented by the application.  It is invoked by OptiX for each
-  * \a requestedPage of the demand loaded \a buffer referenced by the previous launch that was not
-  * resident in device memory.  The callback should either fill the provided \a block buffer with
-  * the requested \a pageDataSizeInBytes of data and return \a true, or return \a false.  When the
-  * callback returns \a false, no data is transferred to the \a buffer.
-  *
-  * <b>CAUTION</b>: OptiX will invoke callback functions from multiple threads in order to satisfy
-  * pending requests in parallel.  A user provided callback function should not allow exceptions to
-  * escape from their callback function.
-  *
-  * @param[in]    callbackData  An arbitrary data pointer from the application when the callback was registered.
-  * @param[in]    buffer        Handle of the buffer requesting pages.
-  * @param[in]    block         A pointer to the @ref RTmemoryblock describing the memory to be filled with data.
-  *
-  * <B>Return values</B>
-  *
-  * \a non-zero   The \a block buffer was filled with \a pageDataSizeInBytes of data.
-  * \a zero       No data was written.  No data will be transferred to the \a buffer.
-  *               The same \a block may be passed to the callback again after the next launch.
-  *
-  * <B>History</B>
-  *
-  * @ref RTbuffercallback was introduced in OptiX 6.1
-  *
-  * <B>See also</B>
-  * @ref RTmemoryblock
-  * @ref rtBufferCreateFromCallback
-  */
-  typedef int (*RTbuffercallback)(void* callbackData, RTbuffer buffer, RTmemoryblock* block);
-
-  /**
-  * @brief Creates a buffer whose contents are loaded on demand.
-  *
-  * @ingroup Buffer
-  *
-  * <B>Description</B>
-  *
-  * @ref rtBufferCreateFromCallback allocates and returns a new handle to a new buffer object in \a *buffer associated
-  * with \a context.  The backing storage of the buffer is managed by OptiX, but is filled on demand by the application.
-  * The backing storage is allocated in multiples of pages.  Each page is a uniform size as described by the
-  * \a RT_BUFFER_ATTRIBUTE_PAGE_SIZE attribute.  The backing storage may be smaller than the total size of storage needed
-  * for the buffer, with OptiX managing the storage in conjunction with the application supplied \a callback.  A buffer
-  * is specified by a bitwise \a or combination of a \a type and \a flags in \a bufferdesc.  The only supported type is
-  * @ref RT_BUFFER_INPUT as only input buffers can be demand loaded.
-  *
-  * The supported flags are:
-  *
-  * -  @ref RT_BUFFER_LAYERED
-  * -  @ref RT_BUFFER_CUBEMAP
-  *
-  * If RT_BUFFER_LAYERED flag is set, buffer depth specifies the number of layers, not the depth of a 3D buffer.
-  * If RT_BUFFER_CUBEMAP flag is set, buffer depth specifies the number of cube faces, not the depth of a 3D buffer.
-  * See details in @ref rtBufferSetSize3D
-  *
-  * It is an error to call @ref rtBufferGetDevicePointer, @ref rtBufferMap or @ref rtBufferUnmap for a demand loaded buffer.
-  *
-  * Returns @ref RT_ERROR_INVALID_VALUE if either \a callback or \a buffer is \a NULL.
-  *
-  * @param[in]   context      The context to create the buffer in.
-  * @param[in]   bufferdesc   Bitwise \a or combination of the \a type and \a flags of the new buffer.
-  * @param[in]   callback     The demand load callback.  Most not be NULL.
-  * @param[in]   callbackData An arbitrary pointer from the application that is passed to the callback.  This may be \a NULL.
-  * @param[out]  buffer       The return handle for the buffer object.
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  * - @ref RT_ERROR_MEMORY_ALLOCATION_FAILED
-  *
-  * <B>History</B>
-  *
-  * @ref rtBufferCreateFromCallback was introduced in OptiX 6.1
-  *
-  * <B>See also</B>
-  * @ref RTbuffercallback
-  * @ref rtBufferDestroy
-  *
-  */
-  RTresult RTAPI rtBufferCreateFromCallback(RTcontext context, unsigned int bufferdesc, RTbuffercallback callback, void* callbackData, RTbuffer* buffer);
 
   /**
   * @brief Destroys a buffer object
@@ -10528,31 +8619,7 @@ extern "C" {
   *   - @ref RT_FORMAT_UNSIGNED_INT2
   *   - @ref RT_FORMAT_UNSIGNED_INT3
   *   - @ref RT_FORMAT_UNSIGNED_INT4
-  *   - @ref RT_FORMAT_LONG_LONG
-  *   - @ref RT_FORMAT_LONG_LONG2
-  *   - @ref RT_FORMAT_LONG_LONG3
-  *   - @ref RT_FORMAT_LONG_LONG4
-  *   - @ref RT_FORMAT_UNSIGNED_LONG_LONG
-  *   - @ref RT_FORMAT_UNSIGNED_LONG_LONG2
-  *   - @ref RT_FORMAT_UNSIGNED_LONG_LONG3
-  *   - @ref RT_FORMAT_UNSIGNED_LONG_LONG4
-  *   - @ref RT_FORMAT_UNSIGNED_BC1
-  *   - @ref RT_FORMAT_UNSIGNED_BC2
-  *   - @ref RT_FORMAT_UNSIGNED_BC3
-  *   - @ref RT_FORMAT_UNSIGNED_BC4
-  *   - @ref RT_FORMAT_BC4
-  *   - @ref RT_FORMAT_UNSIGNED_BC5
-  *   - @ref RT_FORMAT_BC5
-  *   - @ref RT_FORMAT_UNSIGNED_BC6H
-  *   - @ref RT_FORMAT_BC6H
-  *   - @ref RT_FORMAT_UNSIGNED_BC7
   *   - @ref RT_FORMAT_USER
-  *
-  * Buffers of block-compressed formats like @ref RT_FORMAT_BC6H must be sized
-  * to a quarter of the uncompressed view resolution in each dimension, i.e.
-  * @code rtBufferSetSize2D( buffer, width/4, height/4 ); @endcode
-  * The base type of the internal buffer will then correspond to @ref RT_FORMAT_UNSIGNED_INT2
-  * for BC1 and BC4 formats and @ref RT_FORMAT_UNSIGNED_INT4 for all other BC formats.
   *
   * @param[in]   buffer   The buffer to have its format set
   * @param[in]   format   The target format of the buffer
@@ -10622,15 +8689,15 @@ extern "C" {
   * elements. The target buffer is specified by \a buffer, which should be a
   * value returned by @ref rtBufferCreate and should have format @ref RT_FORMAT_USER.
   * The new size of the buffer's individual elements is specified by
-  * \a elementSize and should not be 0. If the buffer has
-  * format @ref RT_FORMAT_USER, and \a elementSize is not 0, then the buffer's individual
-  * element size is set to \a elemenSize and all storage associated with the buffer is reset.
+  * \a element_size and should not be 0. If the buffer has
+  * format @ref RT_FORMAT_USER, and \a element_size is not 0, then the buffer's individual
+  * element size is set to \a element_size and all storage associated with the buffer is reset.
   * Otherwise, this call has no effect and returns either @ref RT_ERROR_TYPE_MISMATCH if
   * the buffer does not have format @ref RT_FORMAT_USER or @ref RT_ERROR_INVALID_VALUE if the
-  * buffer has format @ref RT_FORMAT_USER but \a elemenSize is 0.
+  * buffer has format @ref RT_FORMAT_USER but \a element_size is 0.
   *
   * @param[in]   buffer            Specifies the buffer to be modified
-  * @param[in]   elementSize       Specifies the new size in bytes of the buffer's individual elements
+  * @param[in]   size_of_element   Specifies the new size in bytes of the buffer's individual elements
   *
   * <B>Return values</B>
   *
@@ -10649,7 +8716,7 @@ extern "C" {
   * @ref rtBufferCreate
   *
   */
-  RTresult RTAPI rtBufferSetElementSize(RTbuffer buffer, RTsize elementSize);
+  RTresult RTAPI rtBufferSetElementSize(RTbuffer buffer, RTsize size_of_element);
 
   /**
   * @brief Returns the size of a buffer's individual elements
@@ -10661,11 +8728,11 @@ extern "C" {
   * @ref rtBufferGetElementSize queries the size of a buffer's elements. The target buffer
   * is specified by \a buffer, which should be a value returned by
   * @ref rtBufferCreate. The size, in bytes, of the buffer's
-  * individual elements is returned in \a *elementSize.
+  * individual elements is returned in \a *element_size_return.
   * Returns @ref RT_ERROR_INVALID_VALUE if given a \a NULL pointer.
   *
   * @param[in]   buffer                Specifies the buffer to be queried
-  * @param[out]  elementSize           Returns the size of the buffer's individual elements
+  * @param[out]  size_of_element       Returns the size of the buffer's individual elements
   *
   * <B>Return values</B>
   *
@@ -10684,7 +8751,7 @@ extern "C" {
   * @ref rtBufferCreate
   *
   */
-  RTresult RTAPI rtBufferGetElementSize(RTbuffer buffer, RTsize* elementSize);
+  RTresult RTAPI rtBufferGetElementSize(RTbuffer buffer, RTsize* size_of_element);
 
   /**
   * @brief Sets the width and dimensionality of this buffer
@@ -10925,6 +8992,7 @@ extern "C" {
   * Fails with @ref RT_ERROR_ALREADY_MAPPED if called on a buffer that is mapped.
   *
   * @param[in]   buffer   The buffer to be resized
+  * @param[in]   width    The width of the resized buffer
   * @param[in]   levels   Number of mip levels
   *
   * <B>Return values</B>
@@ -11300,8 +9368,8 @@ extern "C" {
   *
   * <B>Description</B>
   *
-  * @ref rtBufferMap returns a pointer, accessible by the host, in \a *userPointer that
-  * contains a mapped copy of the contents of \a buffer.  The memory pointed to by \a *userPointer
+  * @ref rtBufferMap returns a pointer, accessible by the host, in \a *user_pointer that
+  * contains a mapped copy of the contents of \a buffer.  The memory pointed to by \a *user_pointer
   * can be written to or read from, depending on the type of \a buffer.  For
   * example, this code snippet demonstrates creating and filling an input buffer with
   * floats.
@@ -11318,12 +9386,12 @@ extern "C" {
   *  rtBufferUnmap(buffer);
   *@endcode
   * If \a buffer has already been mapped, returns @ref RT_ERROR_ALREADY_MAPPED.
-  * If \a buffer has size zero, the returned pointer is undefined.
+  * If \a buffer has size zero, the returned pointer is undefined
   *
   * Note that this call does not stop a progressive render if called on a stream buffer.
   *
   * @param[in]   buffer         The buffer to be mapped
-  * @param[out]  userPointer    Return handle to a user pointer where the buffer will be mapped to
+  * @param[out]  user_pointer   Return handle to a user pointer where the buffer will be mapped to
   *
   * <B>Return values</B>
   *
@@ -11344,7 +9412,7 @@ extern "C" {
   * @ref rtBufferUnmapEx
   *
   */
-  RTresult RTAPI rtBufferMap(RTbuffer buffer, void** userPointer);
+  RTresult RTAPI rtBufferMap(RTbuffer buffer, void** user_pointer);
 
   /**
   * @brief Unmaps a buffer's storage from the host
@@ -11388,20 +9456,20 @@ extern "C" {
   *
   * <B>Description</B>
   *
-  * @ref rtBufferMapEx makes the buffer contents available on the host, either by returning a pointer in \a *optixOwned, or by copying the contents
-  * to a memory location pointed to by \a userOwned. Calling @ref rtBufferMapEx with proper map flags can result in better performance than using @ref rtBufferMap, because
+  * @ref rtBufferMapEx makes the buffer contents available on the host, either by returning a pointer in \a *optix_owned, or by copying the contents
+  * to a memory location pointed to by \a user_owned. Calling @ref rtBufferMapEx with proper map flags can result in better performance than using @ref rtBufferMap, because
   * fewer synchronization copies are required in certain situations.
-  * @ref rtBufferMapEx with \a mapFlags = @ref RT_BUFFER_MAP_READ_WRITE and \a level = 0 is equivalent to @ref rtBufferMap.
+  * @ref rtBufferMapEx with \a map_flags = @ref RT_BUFFER_MAP_READ_WRITE and \a leve = 0 is equivalent to @ref rtBufferMap.
   *
   * Note that this call does not stop a progressive render if called on a stream buffer.
   *
   * @param[in]   buffer         The buffer to be mapped
-  * @param[in]   mapFlags       Map flags, see below
+  * @param[in]   map_flags      Map flags, see below
   * @param[in]   level          The mipmap level to be mapped
-  * @param[in]   userOwned      Not yet supported. Must be NULL
-  * @param[out]  optixOwned     Return handle to a user pointer where the buffer will be mapped to
+  * @param[in]   user_owned     Not yet supported. Must be NULL
+  * @param[out]  optix_owned    Return handle to a user pointer where the buffer will be mapped to
   *
-  * The following flags are supported for mapFlags. They are mutually exclusive:
+  * The following flags are supported for map_flags. They are mutually exclusive:
   *
   * -  @ref RT_BUFFER_MAP_READ
   * -  @ref RT_BUFFER_MAP_WRITE
@@ -11427,7 +9495,7 @@ extern "C" {
   * @ref rtBufferUnmapEx
   *
   */
-  RTresult RTAPI rtBufferMapEx(RTbuffer buffer, unsigned int mapFlags, unsigned int level, void* userOwned, void** optixOwned);
+  RTresult RTAPI rtBufferMapEx(RTbuffer buffer, unsigned int map_flags, unsigned int level, void* user_owned, void** optix_owned);
 
   /**
   * @brief Unmaps mipmap level storage from the host
@@ -11474,13 +9542,13 @@ extern "C" {
   *
   * @ref rtBufferGetId returns an ID for the provided buffer.  The returned ID is used on
   * the device to reference the buffer.  It needs to be copied into a buffer of type @ref
-  * RT_FORMAT_BUFFER_ID or used in a @ref rtBufferId object.. If \a *bufferId is \a NULL
+  * RT_FORMAT_BUFFER_ID or used in a @ref rtBufferId object.. If \a *buffer_id is \a NULL
   * or the \a buffer is not a valid RTbuffer, returns @ref
-  * RT_ERROR_INVALID_VALUE.  @ref RT_BUFFER_ID_NULL can be used as a sentinel for a
+  * RT_ERROR_INVALID_VALUE.  @ref RT_BUFFER_ID_NULL can be used as a sentinal for a
   * non-existent buffer, since this value will never be returned as a valid buffer id.
   *
   * @param[in]   buffer      The buffer to be queried for its id
-  * @param[out]  bufferId    The returned ID of the buffer
+  * @param[out]  buffer_id   The returned ID of the buffer
   *
   * <B>Return values</B>
   *
@@ -11496,22 +9564,22 @@ extern "C" {
   * @ref rtContextGetBufferFromId
   *
   */
-  RTresult RTAPI rtBufferGetId(RTbuffer buffer, int* bufferId);
+  RTresult RTAPI rtBufferGetId(RTbuffer buffer, int* buffer_id);
 
   /**
   * @brief Gets an RTbuffer corresponding to the buffer id
   *
-  * @ingroup Context
+  * @ingroup Buffer
   *
   * <B>Description</B>
   *
   * @ref rtContextGetBufferFromId returns a handle to the buffer in \a *buffer corresponding to
-  * the \a bufferId supplied.  If \a bufferId does not map to a valid buffer handle,
+  * the \a buffer_id supplied.  If \a buffer_id does not map to a valid buffer handle,
   * \a *buffer is \a NULL or if \a context is invalid, returns @ref RT_ERROR_INVALID_VALUE.
   *
   * @param[in]   context     The context the buffer should be originated from
-  * @param[in]   bufferId    The ID of the buffer to query
-  * @param[out]  buffer      The return handle for the buffer object corresponding to the bufferId
+  * @param[in]   buffer_id   The ID of the buffer to query
+  * @param[out]  buffer      The return handle for the buffer object corresponding to the buffer_id
   *
   * <B>Return values</B>
   *
@@ -11527,7 +9595,7 @@ extern "C" {
   * @ref rtBufferGetId
   *
   */
-  RTresult RTAPI rtContextGetBufferFromId(RTcontext context, int bufferId, RTbuffer* buffer);
+  RTresult RTAPI rtContextGetBufferFromId(RTcontext context, int buffer_id, RTbuffer* buffer);
 
   /**
   * @brief Check whether stream buffer content has been updated by a Progressive Launch
@@ -11538,16 +9606,16 @@ extern "C" {
   *
   * Returns whether or not the result of a progressive launch in \a buffer has been updated
   * since the last time this function was called. A client application should use this call in its
-  * main render/display loop to poll for frame refreshes after initiating a progressive launch. If \a subframeCount and
-  * \a maxSubframes are non-null, they will be filled with the corresponding counters if and
+  * main render/display loop to poll for frame refreshes after initiating a progressive launch. If \a subframe_count and
+  * \a max_subframes are non-null, they will be filled with the corresponding counters if and
   * only if \a ready returns 1.
   *
   * Note that this call does not stop a progressive render.
   *
   * @param[in]   buffer             The stream buffer to be queried
   * @param[out]  ready              Ready flag. Will be set to 1 if an update is available, or 0 if no update is available.
-  * @param[out]  subframeCount      The number of subframes accumulated in the latest result
-  * @param[out]  maxSubframes       The \a maxSubframes parameter as specified in the call to @ref rtContextLaunchProgressive2D
+  * @param[out]  subframe_count     The number of subframes accumulated in the latest result
+  * @param[out]  max_subframes      The \a max_subframes parameter as specified in the call to @ref rtContextLaunchProgressive2D
   *
   * <B>Return values</B>
   *
@@ -11563,7 +9631,7 @@ extern "C" {
   * @ref rtContextLaunchProgressive2D
   *
   */
-  RTresult RTAPI rtBufferGetProgressiveUpdateReady(RTbuffer buffer, int* ready, unsigned int* subframeCount, unsigned int* maxSubframes);
+  RTresult RTAPI rtBufferGetProgressiveUpdateReady(RTbuffer buffer, int* ready, unsigned int* subframe_count, unsigned int* max_subframes);
 
   /**
   * @brief Bind a stream buffer to an output buffer source
@@ -11654,7 +9722,7 @@ extern "C" {
   * @ref rtBufferGetAttribute
   *
   */
-  RTresult RTAPI rtBufferSetAttribute(RTbuffer buffer, RTbufferattribute attrib, RTsize size, const void* p);
+  RTresult RTAPI rtBufferSetAttribute(RTbuffer buffer, RTbufferattribute attrib, RTsize size, void* p);
 
   /**
   * @brief Query a buffer attribute
@@ -11663,9 +9731,7 @@ extern "C" {
   *
   * <B>Description</B>
   *
-  * @ref rtBufferGetAttribute is used to query buffer attributes. For a list of available attributes that can be set, please refer to @ref rtBufferSetAttribute.
-  * The attribute \a RT_BUFFER_ATTRIBUTE_PAGE_SIZE can only be queried and returns the page size of a demand loaded buffer in bytes.  The size of the data returned
-  * for this attribute is \a sizeof(int).
+  * @ref rtBufferGetAttribute is used to query buffer attributes. For a list of available attributes, please refer to @ref rtBufferSetAttribute.
   *
   * @param[in]   buffer             The buffer to query the attribute from
   * @param[in]   attrib             The attribute to query
@@ -11688,6 +9754,271 @@ extern "C" {
   */
   RTresult RTAPI rtBufferGetAttribute(RTbuffer buffer, RTbufferattribute attrib, RTsize size, void* p);
 
+  /**
+  * @brief Create a device for remote rendering on VCAs
+  *
+  * @ingroup RemoteDevice
+  *
+  * <B>Description</B>
+  *
+  * Establishes a connection to a remote OptiX device, e.g. a VCA or cluster of VCAs. This
+  * opens a connection to the cluster manager software running at \a address, using username
+  * and password as authentication strings.
+  * \a address is a WebSocket URL of the form "ws://localhost:80" or "wss://localhost:443",
+  * \a username and \a password as plain text strings for authenticating on the remote device.
+  * If successful, it initializes a new @ref RTremotedevice object.
+  *
+  * In order to use this newly created remote device, a rendering instance needs to be
+  * configured by selecting a software configuration and reserving a number of nodes
+  * in the VCA. See @ref rtRemoteDeviceReserve for more details.
+  *
+  * After a rendering instance is properly initialized, a remote device must be associated
+  * with a context to be used. Calling @ref rtContextSetDevices creates this association. Any
+  * further OptiX calls will be directed to the remote device.
+  *
+  * @param[in]   url            The WebSocket URL to connect to
+  * @param[in]   username       Username in plain text
+  * @param[in]   password       Password in plain text
+  * @param[out]  remote_dev     A handle to the new remote device object
+  *
+  * <B>Return values</B>
+  *
+  * Relevant return values:
+  * - @ref RT_SUCCESS
+  * - @ref RT_ERROR_INVALID_VALUE
+  * - @ref RT_ERROR_CONNECTION_FAILED
+  * - @ref RT_ERROR_AUTHENTICATION_FAILED
+  *
+  * <B>History</B>
+  *
+  * @ref rtRemoteDeviceCreate was introduced in OptiX 3.8.
+  *
+  * <B>See also</B>
+  * @ref rtRemoteDeviceDestroy
+  * @ref rtRemoteDeviceGetAttribute
+  * @ref rtRemoteDeviceReserve
+  * @ref rtRemoteDeviceRelease
+  * @ref rtContextSetRemoteDevice
+  *
+  */
+  RTresult RTAPI rtRemoteDeviceCreate(const char* url, const char* username, const char* password, RTremotedevice* remote_dev);
+
+  /**
+  * @brief Destroys a remote device
+  *
+  * @ingroup RemoteDevice
+  *
+  * <B>Description</B>
+  *
+  * Closes the network connection to the remote device and destroys the corresponding @ref RTremotedevice object.
+  *
+  * @param[in]   remote_dev     The remote device object to destroy
+  *
+  * <B>Return values</B>
+  *
+  * Relevant return values:
+  * - @ref RT_SUCCESS
+  * - @ref RT_ERROR_INVALID_VALUE
+  *
+  * <B>History</B>
+  *
+  * @ref rtRemoteDeviceDestroy was introduced in OptiX 3.8.
+  *
+  * <B>See also</B>
+  * @ref rtRemoteDeviceCreate
+  * @ref rtRemoteDeviceGetAttribute
+  * @ref rtRemoteDeviceReserve
+  * @ref rtRemoteDeviceRelease
+  * @ref rtContextSetRemoteDevice
+  *
+  */
+  RTresult RTAPI rtRemoteDeviceDestroy(RTremotedevice remote_dev);
+
+  /**
+  * @brief Queries attributes of a remote device
+  *
+  * @ingroup RemoteDevice
+  *
+  * <B>Description</B>
+  *
+  * In order to gather information about a remote device, several attributes can be queried through @ref rtRemoteDeviceGetAttribute.
+  *
+  * Each attribute can have a different size.  The sizes are given in the following list:
+  *
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_CLUSTER_URL          size of provided destination buffer
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_HEAD_NODE_URL        size of provided destination buffer
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_CONFIGURATIONS   sizeof(int)
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_CONFIGURATIONS       size of provided destination buffer
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_STATUS               sizeof(RTremotedevicestatus)
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_TOTAL_NODES      sizeof(int)
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_FREE_NODES       sizeof(int)
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_RESERVED_NODES   sizeof(int)
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NAME                 size of provided destination buffer
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS             sizeof(int)
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_GPU_TOTAL_MEMORY     sizeof(RTsize)
+  *
+  * The following attributes can be queried when a remote device is connected:
+  *
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_CLUSTER_URL
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_CONFIGURATIONS
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_CONFIGURATIONS
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_STATUS
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_TOTAL_NODES
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_FREE_NODES
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NAME
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_GPU_TOTAL_MEMORY
+  *
+  * The following attributes require a valid reservation to be queried:
+  *
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_HEAD_NODE_URL
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_RESERVED_NODES
+  *   - @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_CLUSTER_URL
+  * The URL of the Cluster Manager associated with this remote device.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_HEAD_NODE_URL
+  * The URL of the rendering instance being used, once it has been reserved and initialized.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_CONFIGURATIONS
+  * Number of compatible software configurations available in the remote device.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_CONFIGURATIONS
+  * Base entry for a list of compatible software configurations in the device. A configuration is a text description for
+  * a software package installed in the remote device, intended as a guide to the user in selecting from the pool of
+  * compatible configurations. This list is already filtered and it only contains entries on the remote device compatible
+  * with the client library being used.
+  * Each entry can be accessed as the attribute (RT_REMOTEDEVICE_ATTRIBUTE_CONFIGURATIONS + index),
+  * with index being zero-based.
+  * The configuration description for the given index is copied into the destination buffer. A suggested size for the destination
+  * buffer is 256 characters.
+  * The number of entries in the list is given by the value of @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_CONFIGURATIONS.
+  * Only configurations compatible with the client version being used are listed.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_STATUS
+  * Returns the current status of the remote device, as one of the following:
+  *    - @ref RT_REMOTEDEVICE_STATUS_READY          The remote device is ready for use.
+  *    - @ref RT_REMOTEDEVICE_STATUS_CONNECTED      The remote device is connected to a cluster manager, but no reservation exists.
+  *    - @ref RT_REMOTEDEVICE_STATUS_RESERVED       The remote device has a rendering instance reserved, but it is not yet ready.
+  *    - @ref RT_REMOTEDEVICE_STATUS_DISCONNECTED   The remote device has disconnected.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_TOTAL_NODES
+  * Total number of nodes in the cluster of VCAs.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_FREE_NODES
+  * Number of free nodes available.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_RESERVED_NODES
+  * Number of nodes used by the current reservation.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS
+  * Number of GPUs used by the current reservation.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_NAME
+  * Common name assigned the Remote Device.
+  *
+  * @ref RT_REMOTEDEVICE_ATTRIBUTE_GPU_TOTAL_MEMORY
+  * Total amount of memory on each GPU, in bytes.
+  *
+  * @param[in]   remote_dev     The remote device to query
+  *
+  * <B>Return values</B>
+  *
+  * Relevant return values:
+  * - @ref RT_SUCCESS
+  * - @ref RT_ERROR_INVALID_VALUE
+  *
+  * <B>History</B>
+  *
+  * @ref rtRemoteDeviceGetAttribute was introduced in OptiX 3.8.
+  *
+  * <B>See also</B>
+  * @ref rtRemoteDeviceCreate
+  * @ref rtRemoteDeviceReserve
+  * @ref rtRemoteDeviceRelease
+  * @ref rtContextSetRemoteDevice
+  *
+  */
+  RTresult RTAPI rtRemoteDeviceGetAttribute(RTremotedevice remote_dev, RTremotedeviceattribute attrib, RTsize size, void* p);
+
+  /**
+  * @brief Reserve nodes for rendering on a remote device
+  *
+  * @ingroup RemoteDevice
+  *
+  * <B>Description</B>
+  *
+  * Reserves nodes in the remote device to form a rendering instance. Receives \a num_nodes
+  * as the number of nodes to reserve, and \a configuration as the index of the software
+  * package to use for the created instance. Both the number of available nodes and the list
+  * of available configurations in a remote device can be retrieved by
+  * @ref rtRemoteDeviceGetAttribute.
+  *
+  * After successfully reserving the nodes, the @ref RT_REMOTEDEVICE_ATTRIBUTE_STATUS
+  * attribute should be polled repeatedly. The rendering instance is ready for use when that
+  * attribute is set to RT_REMOTE_DEVICE_STATUS_READY.
+  *
+  * Only a single reservation per remote device and user can exist at any given time (i.e. a
+  * user can have only one rendering instance per remote device). This includes
+  * reservations performed through other means, like previous runs that were not properly
+  * released, or manual reservations over the cluster manager web interface.
+  *
+  * @param[in]   remote_dev     The remote device on which to reserve nodes
+  * @param[in]   num_nodes      The number of nodes to reserve
+  * @param[in]   configuration  The index of the software configuration to use
+  *
+  * <B>Return values</B>
+  *
+  * Relevant return values:
+  * - @ref RT_SUCCESS
+  * - @ref RT_ERROR_INVALID_VALUE
+  *
+  * <B>History</B>
+  *
+  * @ref rtRemoteDeviceReserve was introduced in OptiX 3.8.
+  *
+  * <B>See also</B>
+  * @ref rtRemoteDeviceCreate
+  * @ref rtRemoteDeviceGetAttribute
+  * @ref rtRemoteDeviceRelease
+  * @ref rtContextSetRemoteDevice
+  *
+  */
+  RTresult RTAPI rtRemoteDeviceReserve(RTremotedevice remote_dev, unsigned int num_nodes, unsigned int configuration);
+
+  /**
+  * @brief Release reserved nodes on a remote device
+  *
+  * @ingroup RemoteDevice
+  *
+  * <B>Description</B>
+  *
+  * Releases an existing reservation on the remote device. The rendering instance on the
+  * remote device is destroyed, and all its remote context information is lost. Further OptiX
+  * calls will no longer be directed to the device. A new reservation can take place.
+  *
+  * @param[in]   remote_dev     The remote device on which the reservation was made
+  *
+  * <B>Return values</B>
+  *
+  * Relevant return values:
+  * - @ref RT_SUCCESS
+  * - @ref RT_ERROR_INVALID_VALUE
+  *
+  * <B>History</B>
+  *
+  * @ref rtRemoteDeviceRelease was introduced in OptiX 3.8.
+  *
+  * <B>See also</B>
+  * @ref rtRemoteDeviceCreate
+  * @ref rtRemoteDeviceGetAttribute
+  * @ref rtRemoteDeviceReserve
+  * @ref rtContextSetRemoteDevice
+  *
+  */
+  RTresult RTAPI rtRemoteDeviceRelease(RTremotedevice remote_dev);
+
+
 
 /************************************
  **
@@ -11699,7 +10030,7 @@ extern "C" {
   /**
   * @brief Creates a new post-processing stage
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -11709,7 +10040,7 @@ extern "C" {
   * Sets \a *stage to the handle of a newly created stage within \a context.
   *
   * @param[in]   context      Specifies the rendering context to which the post-processing stage belongs
-  * @param[in]   builtinName  The name of the built-in stage to instantiate
+  * @param[in]   builtin_name The name of the built-in stage to instantiate
   * @param[out]  stage        New post-processing stage handle
   *
   * <B>Return values</B>
@@ -11732,12 +10063,12 @@ extern "C" {
   * @ref rtPostProcessingStageGetVariable
   *
   */
-  RTresult RTAPI rtPostProcessingStageCreateBuiltin(RTcontext context, const char* builtinName, RTpostprocessingstage* stage);
+  RTresult RTAPI rtPostProcessingStageCreateBuiltin(RTcontext context, const char* builtin_name, RTpostprocessingstage* stage);
 
   /**
   * @brief Destroy a post-processing stage
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -11771,7 +10102,7 @@ extern "C" {
   /**
   * @brief Declares a new named variable associated with a PostprocessingStage
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -11813,7 +10144,7 @@ extern "C" {
   /**
   * @brief Returns the context associated with a post-processing stage.
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -11850,7 +10181,7 @@ extern "C" {
   /**
   * @brief Returns a handle to a named variable of a post-processing stage
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -11888,7 +10219,7 @@ extern "C" {
   /**
   * @brief Returns the number of variables pre-defined in a post-processing stage.
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -11922,7 +10253,7 @@ extern "C" {
   /**
   * @brief Returns a handle to a variable of a post-processing stage. The variable is defined by index.
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -11967,7 +10298,7 @@ extern "C" {
   /**
   * @brief Creates a new command list
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -12012,7 +10343,7 @@ extern "C" {
   /**
   * @brief Destroy a command list
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -12044,14 +10375,14 @@ extern "C" {
   /**
   * @brief Append a post-processing stage to the command list \a list
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
   * @ref rtCommandListAppendPostprocessingStage appends a post-processing stage to the command list
   * \a list. The command list must have been created from the same context as the the post-processing
   * stage.
-  * The launchWidth and launchHeight specify the launch dimensions and may be different than the
+  * The launch_width and launch_height specify the launch dimensions and may be different than the
   * input or output buffers associated with each post-processing stage depending on the requirements
   * of the post-processing stage appended.
   * It is invalid to call @ref rtCommandListAppendPostprocessingStage after calling @ref
@@ -12063,9 +10394,9 @@ extern "C" {
   *
   * @param[in]  list          Handle of the command list to append to
   * @param[in]  stage         The post-processing stage to append to the command list
-  * @param[in]  launchWidth   This is a hint for the width of the launch dimensions to use for this stage.
+  * @param[in]  launch_width  This is a hint for the width of the launch dimensions to use for this stage.
   *                           The stage can ignore this and use a suitable launch width instead.
-  * @param[in]  launchHeight  This is a hint for the height of the launch dimensions to use for this stage.
+  * @param[in]  launch_width  This is a hint for the height of the launch dimensions to use for this stage.
   *                           The stage can ignore this and use a suitable launch height instead.
   *
   * <B>Return values</B>
@@ -12087,58 +10418,22 @@ extern "C" {
   * @ref rtPostProcessingStageCreateBuiltin,
   *
   */
-  RTresult RTAPI rtCommandListAppendPostprocessingStage(RTcommandlist list, RTpostprocessingstage stage, RTsize launchWidth, RTsize launchHeight);
+  RTresult RTAPI rtCommandListAppendPostprocessingStage(RTcommandlist list, RTpostprocessingstage stage, RTsize launch_width, RTsize launch_height);
 
   /**
-  * @brief Append a 1D launch to the command list \a list
+  * @brief Append a launch to the command list \a list
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
-  * @ref rtCommandListAppendLaunch1D appends a 1D context launch to the command list \a list. It is
-  * invalid to call @ref rtCommandListAppendLaunch1D after calling @ref rtCommandListFinalize.
-  *
-  * @param[in]  list              Handle of the command list to append to
-  * @param[in]  entryPointIndex   The initial entry point into the kernel
-  * @param[in]  launchWidth       Width of the computation grid
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtCommandListAppendLaunch2D was introduced in OptiX 6.1.
-  *
-  * <B>See also</B>
-  * @ref rtCommandListCreate,
-  * @ref rtCommandListDestroy,
-  * @ref rtCommandListAppendPostprocessingStage,
-  * @ref rtCommandListAppendLaunch2D,
-  * @ref rtCommandListAppendLaunch3D,
-  * @ref rtCommandListFinalize,
-  * @ref rtCommandListExecute
-  *
-  */
-  RTresult RTAPI rtCommandListAppendLaunch1D(RTcommandlist list, unsigned int entryPointIndex, RTsize launchWidth);
-
-  /**
-  * @brief Append a 2D launch to the command list \a list
-  *
-  * @ingroup CommandList
-  *
-  * <B>Description</B>
-  *
-  * @ref rtCommandListAppendLaunch2D appends a 2D context launch to the command list \a list. It is
+  * @ref rtCommandListAppendLaunch2D appends a context launch to the command list \a list. It is
   * invalid to call @ref rtCommandListAppendLaunch2D after calling @ref rtCommandListFinalize.
   *
   * @param[in]  list              Handle of the command list to append to
-  * @param[in]  entryPointIndex   The initial entry point into the kernel
-  * @param[in]  launchWidth       Width of the computation grid
-  * @param[in]  launchHeight      Height of the computation grid
+  * @param[in]  entry_point_index The initial entry point into the kernel
+  * @param[in]  launch_width      Width of the computation grid
+  * @param[in]  launch_height     Height of the computation grid
   *
   * <B>Return values</B>
   *
@@ -12154,165 +10449,21 @@ extern "C" {
   * @ref rtCommandListCreate,
   * @ref rtCommandListDestroy,
   * @ref rtCommandListAppendPostprocessingStage,
-  * @ref rtCommandListAppendLaunch1D,
-  * @ref rtCommandListAppendLaunch3D,
   * @ref rtCommandListFinalize,
   * @ref rtCommandListExecute
   *
   */
-  RTresult RTAPI rtCommandListAppendLaunch2D(RTcommandlist list, unsigned int entryPointIndex, RTsize launchWidth, RTsize launchHeight);
-
-  /**
-  * @brief Append a 3D launch to the command list \a list
-  *
-  * @ingroup CommandList
-  *
-  * <B>Description</B>
-  *
-  * @ref rtCommandListAppendLaunch3D appends a 3D context launch to the command list \a list. It is
-  * invalid to call @ref rtCommandListAppendLaunch3D after calling @ref rtCommandListFinalize.
-  *
-  * @param[in]  list              Handle of the command list to append to
-  * @param[in]  entryPointIndex   The initial entry point into the kernel
-  * @param[in]  launchWidth       Width of the computation grid
-  * @param[in]  launchHeight      Height of the computation grid
-  * @param[in]  launchDepth       Depth of the computation grid
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtCommandListAppendLaunch2D was introduced in OptiX 6.1.
-  *
-  * <B>See also</B>
-  * @ref rtCommandListCreate,
-  * @ref rtCommandListDestroy,
-  * @ref rtCommandListAppendPostprocessingStage,
-  * @ref rtCommandListAppendLaunch1D,
-  * @ref rtCommandListAppendLaunch2D,
-  * @ref rtCommandListFinalize,
-  * @ref rtCommandListExecute
-  *
-  */
-  RTresult RTAPI rtCommandListAppendLaunch3D(RTcommandlist list, unsigned int entryPointIndex, RTsize launchWidth, RTsize launchHeight, RTsize launchDepth);
-
-  /**
-  * @brief Sets the devices to use for this command list.
-  *
-  * @ingroup CommandList
-  *
-  * <B>Description</B>
-  *
-  * @ref rtCommandListSetDevices specifies a list of hardware devices to use for this command list. This
-  * must be a subset of the currently active devices, see @ref rtContextSetDevices. If not set then all the
-  * active devices will be used.
-  *
-  * @param[in]  list      Handle of the command list to set devices for
-  * @param[in]  count     The number of devices in the list
-  * @param[in]  devices   The list of devices
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * <B>See also</B>
-  * @ref rtContextSetDevices,
-  * @ref rtCommandListCreate,
-  * @ref rtCommandListDestroy,
-  * @ref rtCommandListAppendPostprocessingStage,
-  * @ref rtCommandListAppendLaunch2D,
-  * @ref rtCommandListExecute
-  *
-  */
-  RTresult RTAPI rtCommandListSetDevices(RTcommandlist list, unsigned int count, const int* devices);
-
-    /**
-  * @brief Retrieve a list of hardware devices being used by the command list.
-  *
-  * @ingroup CommandList
-  *
-  * <B>Description</B>
-  *
-  * @ref rtCommandListGetDevices retrieves a list of hardware devices used by the command list.
-  * Note that the device numbers are  OptiX device ordinals, which may not be the same as CUDA device ordinals.
-  * Use @ref rtDeviceGetAttribute with @ref RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL to query the CUDA device
-  * corresponding to a particular OptiX device.
-  *
-  * Note that if the list of set devices is empty then all active devices will be used.
-  *
-  * @param[in]   list      The command list to which the hardware list is applied
-  * @param[out]  devices   Return parameter for the list of devices. The memory must be able to hold entries
-  * numbering least the number of devices as returned by @ref rtCommandListGetDeviceCount
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * <B>See also</B>
-  * @ref rtCommandListSetDevices,
-  * @ref rtCommandListCreate,
-  * @ref rtCommandListDestroy,
-  * @ref rtCommandListAppendPostprocessingStage,
-  * @ref rtCommandListAppendLaunch2D,
-  * @ref rtCommandListExecute
-  *
-  */
-  RTresult RTAPI rtCommandListGetDevices(RTcommandlist list, int* devices);
-
-  /**
-  * @brief Query the number of devices currently being used by the command list.
-  *
-  * @ingroup Context
-  *
-  * <B>Description</B>
-  *
-  * @ref rtCommandListGetDeviceCount queries the number of devices currently being used.
-  *
-  * @param[in]   list      The command list containing the devices
-  * @param[out]  count     Return parameter for the device count
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * <B>See also</B>
-  * @ref rtCommandListSetDevices,
-  * @ref rtCommandListCreate,
-  * @ref rtCommandListDestroy,
-  * @ref rtCommandListAppendPostprocessingStage,
-  * @ref rtCommandListAppendLaunch2D,
-  * @ref rtCommandListExecute
-  *
-  */
-  RTresult RTAPI rtCommandListGetDeviceCount(RTcommandlist list, unsigned int* count);
+  RTresult RTAPI rtCommandListAppendLaunch2D(RTcommandlist list, unsigned int entry_point_index, RTsize launch_width, RTsize launch_height);
 
   /**
   * @brief Finalize the command list. This must be done before executing the command list.
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
   * @ref rtCommandListFinalize finalizes the command list. This will do all work necessary to
-  * prepare the command list for execution. Specifically it will do all work which can be shared
+  * prepare the command list for execution. Specificially it will do all work which can be shared
   * between subsequent calls to @ref rtCommandListExecute.
   * It is invalid to call @ref rtCommandListExecute before calling @ref rtCommandListFinalize. It is
   * invalid to call @ref rtCommandListAppendPostprocessingStage or
@@ -12344,13 +10495,13 @@ extern "C" {
   /**
   * @brief Execute the command list.
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
   * @ref rtCommandListExecute executes the command list. All added commands will be executed in the
   * order in which they were added. Commands can access the results of earlier executed commands.
-  * This must be called after calling @ref rtCommandListFinalize, otherwise an error will be returned
+  * This must be called after calling @rtCommandListFinalize, otherwise an error will be returned
   * and the command list is not executed.
   * @ref rtCommandListExecute can be called multiple times, but only one call may be active at the
   * same time. Overlapping calls from multiple threads will result in undefined behavior.
@@ -12380,7 +10531,7 @@ extern "C" {
   /**
   * @brief Returns the context associated with a command list
   *
-  * @ingroup CommandList
+  * @ingroup Commandlist
   *
   * <B>Description</B>
   *
@@ -12409,270 +10560,6 @@ extern "C" {
   *
   */
   RTresult RTAPI rtCommandListGetContext(RTcommandlist list, RTcontext* context);
-
-
-  /**
-  * @brief Sets the attribute program on a GeometryTriangles object
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesSetAttributeProgram sets for \a geometrytriangles the \a
-  * program that performs attribute computation.  RTprograms can be either generated with
-  * @ref rtProgramCreateFromPTXFile or @ref rtProgramCreateFromPTXString. An attribute
-  * program is optional.  If no attribute program is specified, a default attribute
-  * program will be provided.  Attributes are computed after intersection and before any-
-  * hit or closest-hit programs that require those attributes.  No assumptions about the
-  * precise invocation time should be made.
-  * The default attribute program provides the attribute rtTriangleBarycentrics of type float2.
-  *
-  * Names are case sensitive and types must match.  To use the attribute, declare the following
-  *    rtDeclareVariable( float2, barycentrics, attribute rtTriangleBarycentrics, );
-  *
-  * If you provide an attribute program, the following device side functions will be available:
-  *    float2 rtGetTriangleBarycentrics();
-  *    unsigned int rtGetPrimitiveIndex();
-  *    bool rtIsTriangleHit();
-  *    bool rtIsTriangleHitFrontFace();
-  *    bool rtIsTriangleHitBackFace();
-  *
-  * besides other semantics such as the ray time for motion blur.
-  *
-  * @param[in]   geometrytriangles  The geometrytriangles node for which to set the attribute program
-  * @param[in]   program            A handle to the attribute program
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesSetAttributeProgram was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetAttributeProgram,
-  * @ref rtProgramCreateFromPTXFile,
-  * @ref rtProgramCreateFromPTXString,
-  * @ref rtGetTriangleBarycentrics,
-  *
-  */
-  RTresult RTAPI rtGeometryTrianglesSetAttributeProgram( RTgeometrytriangles geometrytriangles, RTprogram program );
-
-
-  /**
-  * @brief Gets the attribute program of a GeometryTriangles object
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesGetAttributeProgram gets the attribute \a program of a given
-  * \a geometrytriangles object.  If no program has been set, 0 is returned.
-  *
-  * @param[in]   geometrytriangles  The geometrytriangles node for which to set the attribute program
-  * @param[out]  program            A pointer to a handle to the attribute program
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetAttributeProgram was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesDeclareVariable,
-  * @ref rtGeometryTrianglesSetAttributeProgram,
-  * @ref rtProgramCreateFromPTXFile,
-  * @ref rtProgramCreateFromPTXString
-  *
-  */
-
-  RTresult RTAPI rtGeometryTrianglesGetAttributeProgram( RTgeometrytriangles geometrytriangles, RTprogram* program );
-
-
-  /**
-  * @brief Declares a geometry variable for a GeometryTriangles object
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesDeclareVariable declares a \a variable attribute of a \a geometrytriangles object with
-  * a specified \a name.
-  *
-  * @param[in]   geometrytriangles     A geometry node
-  * @param[in]   name                  The name of the variable
-  * @param[out]  v                     A pointer to a handle to the variable
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesDeclareVariable was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetVariable,
-  * @ref rtGeometryTrianglesGetVariableCount,
-  * @ref rtGeometryTrianglesQueryVariable,
-  * @ref rtGeometryTrianglesRemoveVariable
-  *
-  */
-
-  RTresult RTAPI rtGeometryTrianglesDeclareVariable( RTgeometrytriangles geometrytriangles, const char* name, RTvariable* v );
-
-
-  /**
-  * @brief Queries a variable attached to a GeometryTriangles object
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesQueryVariable gets a variable with a given \a name from
-  * a \a geometrytriangles object.
-  *
-  * @param[in]   geometrytriangles    A geometrytriangles object
-  * @param[in]   name                 Thee name of the variable
-  * @param[out]  v                    A pointer to a handle to the variable
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesQueryVariable was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesGetVariable,
-  * @ref rtGeometryTrianglesGetVariableCount,
-  * @ref rtGeometryTrianglesQueryVariable,
-  * @ref rtGeometryTrianglesRemoveVariable
-  *
-  */
-
-  RTresult RTAPI rtGeometryTrianglesQueryVariable( RTgeometrytriangles geometrytriangles, const char* name, RTvariable* v );
-
-
-  /**
-  * @brief Removes a variable from GeometryTriangles object
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesRemoveVariable removes a variable from
-  * a \a geometrytriangles object.
-  *
-  * @param[in]   geometrytriangles     A geometrytriangles object
-  * @param[in]   v                     A pointer to a handle to the variable
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesRemoveVariable was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesDeclareVariable,
-  * @ref rtGeometryTrianglesGetVariable,
-  * @ref rtGeometryTrianglesGetVariableCount,
-  * @ref rtGeometryTrianglesQueryVariable
-  *
-  */
-
-  RTresult RTAPI rtGeometryTrianglesRemoveVariable( RTgeometrytriangles geometrytriangles, RTvariable v );
-
-
-  /**
-  * @brief Get the number of variables attached to a GeometryTriangles object
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesGetVariableCount returns a \a count of the number
-  * of variables attached to a \a geometrytriangles object.
-  *
-  * @param[in]   geometrytriangles   A geometrytriangles node
-  * @param[out]  count               A pointer to an unsigned int
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetVariableCount was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesDeclareVariable,
-  * @ref rtGeometryTrianglesGetVariable,
-  * @ref rtGeometryTrianglesQueryVariable,
-  * @ref rtGeometryTrianglesRemoveVariable
-  *
-  */
-
-  RTresult RTAPI rtGeometryTrianglesGetVariableCount( RTgeometrytriangles geometrytriangles, unsigned int* count );
-
-
-  /**
-  * @brief Get a variable attached to a GeometryTriangles object at a specified index.
-  *
-  * @ingroup GeometryTriangles
-  *
-  * <B>Description</B>
-  *
-  * @ref rtGeometryTrianglesGetVariable returns the variable attached at a given
-  * index to the specified GeometryTriangles object.
-  *
-  * @param[in]   geometrytriangles   A geometry node
-  * @param[in]   index               The index of the variable
-  * @param[out]  v                   A pointer to a variable handle
-  *
-  * <B>Return values</B>
-  *
-  * Relevant return values:
-  * - @ref RT_SUCCESS
-  * - @ref RT_ERROR_INVALID_CONTEXT
-  * - @ref RT_ERROR_INVALID_VALUE
-  *
-  * <B>History</B>
-  *
-  * @ref rtGeometryTrianglesGetVariable was introduced in OptiX 6.0.
-  *
-  * <B>See also</B>
-  * @ref rtGeometryTrianglesDeclareVariable,
-  * @ref rtGeometryTrianglesGetVariableCount,
-  * @ref rtGeometryTrianglesQueryVariable,
-  * @ref rtGeometryTrianglesRemoveVariable
-  *
-  */
-
-  RTresult RTAPI rtGeometryTrianglesGetVariable( RTgeometrytriangles geometrytriangles, unsigned int index, RTvariable* v );
 
 
 #ifdef __cplusplus
